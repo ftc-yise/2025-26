@@ -13,6 +13,12 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import com.qualcomm.hardware.limelightvision.LLStatus;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 @TeleOp(name="LimelightTest", group="Linear Opmode")
 @Disabled
@@ -20,76 +26,44 @@ public class LimelightTest extends LinearOpMode {
 
     // Declare OpMode members for each of the 4 motors.
     private ElapsedTime runtime = new ElapsedTime();
-    private DcMotor leftFrontDrive = null;
-    private DcMotor leftBackDrive = null;
-    private DcMotor rightFrontDrive = null;
-    private DcMotor rightBackDrive = null;
-
-    private Servo plane = null;
-
-    private double slowSpeed = 0.4;
-    private double fullSpeed = 1;
-    private double currentSpeed = 1;
-    private boolean canChangeSpeeds = true;
+    private Limelight3A limelight;
 
     @Override
     public void runOpMode() {
 
-        // Initialize the hardware variables. Note that the strings used here must correspond
-        // to the names assigned during the robot configuration step on the DS or RC devices.
-        leftFrontDrive  = hardwareMap.get(DcMotor.class, "left_front_drive");
-        leftBackDrive  = hardwareMap.get(DcMotor.class, "left_back_drive");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
-
-        plane = hardwareMap.get(Servo.class, "plane");
-
-        leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
-        leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
-        rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.setPollRateHz(100); // This sets how often we ask Limelight for data (100 times per second)
+        limelight.start(); // This tells Limelight to start looking!
+        limelight.pipelineSwitch(0); // Switch to pipeline number 0
 
         waitForStart();
         runtime.reset();
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
-            double max;
+            LLResult result = null;
+            result.getPipelineIndex();
 
-            // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-            double forward   = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
-            double strafe =  gamepad1.left_stick_x;
-            double turn     =  gamepad1.right_stick_x;
+            result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                double tx = result.getTx(); // How far left or right the target is (degrees)
+                double ty = result.getTy(); // How far up or down the target is (degrees)
+                double ta = result.getTa(); // How big the target looks (0%-100% of the image)
 
-            // Combine the joystick requests for each axis-motion to determine each wheel's power.
-            // Set up a variable for each drive wheel to save the power level for telemetry.
-            double leftFrontPower  = forward - strafe + turn;
-            double rightFrontPower = forward + strafe - turn;
-            double leftBackPower   = forward + strafe + turn;
-            double rightBackPower  = forward - strafe - turn;
-
-            if (gamepad1.left_trigger > .75) {
-                plane.setPosition(Servo.MIN_POSITION);
-            } else if (gamepad1.right_trigger > .75) {
-                plane.setPosition(Servo.MAX_POSITION);
+                telemetry.addData("Target X", tx);
+                telemetry.addData("Target Y", ty);
+                telemetry.addData("Target Area", ta);
+            } else {
+                telemetry.addData("Limelight", "No Targets");
             }
-
-            if (gamepad1.y && canChangeSpeeds) {
-                canChangeSpeeds = false;
-                if (currentSpeed == fullSpeed) {
-                    currentSpeed = slowSpeed;
-                } else {
-                    currentSpeed = fullSpeed;
+            if (result != null && result.isValid()) {
+                Pose3D botpose = result.getBotpose();
+                if (botpose != null) {
+                    double x = botpose.getPosition().x;
+                    double y = botpose.getPosition().y;
+                    telemetry.addData("MT1 Location", "(" + x + ", " + y + ")");
                 }
-            } else if (!gamepad1.y) {
-                canChangeSpeeds = true;
             }
-
-
-            // Send calculated power to wheels
-            leftFrontDrive.setPower(leftFrontPower * currentSpeed);
-            rightFrontDrive.setPower(rightFrontPower * currentSpeed);
-            leftBackDrive.setPower(leftBackPower * currentSpeed);
-            rightBackDrive.setPower(rightBackPower * currentSpeed);
         }
-    }}
+    }
+}
