@@ -18,15 +18,22 @@ import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.LLStatus;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 @TeleOp(name="LimelightTest", group="Linear Opmode")
-@Disabled
 public class LimelightTest extends LinearOpMode {
 
-    // Declare OpMode members for each of the 4 motors.
+
+    public double getDistanceFromTag(double ta) {
+        double scale = 23851.19;
+        double distance = (scale / ta);
+        return distance;
+    }
     private ElapsedTime runtime = new ElapsedTime();
     private Limelight3A limelight;
+
+    private double distance_g;
 
     @Override
     public void runOpMode() {
@@ -34,7 +41,7 @@ public class LimelightTest extends LinearOpMode {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100); // This sets how often we ask Limelight for data (100 times per second)
         limelight.start(); // This tells Limelight to start looking!
-        limelight.pipelineSwitch(0); // Switch to pipeline number 0
+        limelight.pipelineSwitch(0); // Switch to pipeline number 0 which is ID:21
 
         waitForStart();
         runtime.reset();
@@ -42,7 +49,6 @@ public class LimelightTest extends LinearOpMode {
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
             LLResult result = null;
-            result.getPipelineIndex();
 
             result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
@@ -53,17 +59,21 @@ public class LimelightTest extends LinearOpMode {
                 telemetry.addData("Target X", tx);
                 telemetry.addData("Target Y", ty);
                 telemetry.addData("Target Area", ta);
-            } else {
-                telemetry.addData("Limelight", "No Targets");
-            }
-            if (result != null && result.isValid()) {
                 Pose3D botpose = result.getBotpose();
+                distance_g = getDistanceFromTag(ta);
+                telemetry.addData( "Distance",distance_g);
                 if (botpose != null) {
                     double x = botpose.getPosition().x;
                     double y = botpose.getPosition().y;
                     telemetry.addData("MT1 Location", "(" + x + ", " + y + ")");
-                }
+
+                telemetry.update();
+            } else {
+                telemetry.addData("Limelight", "No Targets");
+                telemetry.update();
             }
         }
+
     }
+}
 }
