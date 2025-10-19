@@ -45,7 +45,7 @@ public class LimelightTest extends LinearOpMode {
     }
     public double getDistanceFromTag(double ta) {
         double scale = 29224.5;
-        double distance = -1 * Math.sqrt(ta / scale);
+        double distance = Math.pow((ta / scale),1.0 / -1.999612);
         return distance;
     }
 
