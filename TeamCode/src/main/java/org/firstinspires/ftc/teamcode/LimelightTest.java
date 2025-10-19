@@ -23,7 +23,7 @@ public class LimelightTest extends LinearOpMode {
         limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
 
         waitForStart();
-        runtime.reset();
+        runtime.reset();;
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
@@ -44,8 +44,9 @@ public class LimelightTest extends LinearOpMode {
         }
     }
     public double getDistanceFromTag(double ta) {
-        double scale = 23851.19;
+        double scale = 29224.5;
         double distance = (scale / ta);
         return distance;
     }
+
 }
