@@ -30,7 +30,7 @@ public class LimelightTest extends LinearOpMode {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
                 Pose3D botpose = result.getBotpose_MT2();
-                distance_g = getDistanceFromTag(result.getTa());
+                distance_g = getDistanceFromTag(result.getTa(), result.getTx());
                 telemetry.addData("Distance", distance_g);
                 telemetry.addData("Target X", result.getTx());
                 telemetry.addData("Target Y", result.getTy());
@@ -43,9 +43,11 @@ public class LimelightTest extends LinearOpMode {
             }
         }
     }
-    public double getDistanceFromTag(double ta) {
+    public double getDistanceFromTag(double ta, double angle) {
         double scale = 29224.5;
-        double distance = Math.pow((ta / scale),1.0 / -1.975592);
+        double exponent = -1.975592;
+        double scale_tuned = scale + 1958.296 * angle - 280.266 * Math.pow(angle, 2) + 9.090653 * Math.pow(angle, 3);
+        double distance = Math.pow((ta / scale_tuned),1.0 / exponent);
         return distance;
     }
 
