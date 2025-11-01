@@ -29,13 +29,17 @@ public class LimelightTest extends LinearOpMode {
         while (opModeIsActive()) {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
-                Pose3D botpose = result.getBotpose_MT2();
+                Pose3D botpose = result.getBotpose();
                 distance_g = getDistanceFromTag(result.getTa(), result.getTx());
                 telemetry.addData("Distance", distance_g);
+
                 telemetry.addData("Target X", result.getTx());
                 telemetry.addData("Target Y", result.getTy());
                 telemetry.addData("Target Area", result.getTa());
-                telemetry.addData("Botpose", botpose.toString());
+                //telemetry.addData("Botpose", botpose.toString());
+                double x =botpose.getPosition().x * 39.37;
+                double y =botpose.getPosition().y * 39.37;
+                telemetry.addData("MT1 Location", "("+ x +"," + y +")");
                 telemetry.update();
             } else {
                 telemetry.addData("Limelight", "No Targets");
