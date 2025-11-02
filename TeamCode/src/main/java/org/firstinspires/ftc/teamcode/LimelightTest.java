@@ -3,19 +3,23 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-
+import com.qualcomm.robotcore.hardware.DcMotor;
 @TeleOp(name="LimelightTest", group="Linear Opmode")
 public class LimelightTest extends LinearOpMode {
     private ElapsedTime runtime = new ElapsedTime();
     private Limelight3A limelight;
     private double distance_g;
+    private DcMotor turret = null;
 
     @Override
     public void runOpMode() {
+
+        turret = hardwareMap.get(DcMotor.class, "turret");
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100); // This sets how often we ask Limelight for data (100 times per second)
@@ -35,8 +39,8 @@ public class LimelightTest extends LinearOpMode {
                 distance_g = getDistanceFromPose( x,y );
                 telemetry.addData("Distance", distance_g);
 
-                telemetry.addData("Target X", result.getTx());
-                telemetry.addData("Target Y", result.getTy());
+                telemetry.addData("Target X", result.getTy());
+                telemetry.addData("Target Y", result.getTx());
                 telemetry.addData("Target Area", result.getTa());
                 //telemetry.addData("Botpose", botpose.toString());
 
@@ -46,6 +50,17 @@ public class LimelightTest extends LinearOpMode {
                 telemetry.addData("Limelight", "No Targets");
                 telemetry.update();
             }
+
+            if (gamepad1.x) {
+                turret.setDirection(DcMotor.Direction.FORWARD);
+                turret.setPower(0.1);
+            } else if (gamepad1.b) {
+                turret.setDirection(DcMotor.Direction.REVERSE);
+                turret.setPower(0.1);
+            } else {
+                turret.setPower(0);
+            }
+
         }
     }
     public double getDistanceFromPose(double x, double y) {
