@@ -30,15 +30,16 @@ public class LimelightTest extends LinearOpMode {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
                 Pose3D botpose = result.getBotpose();
-                distance_g = getDistanceFromTag(result.getTa(), result.getTx());
+                double x =botpose.getPosition().x * 39.37;
+                double y =botpose.getPosition().y * 39.37;
+                distance_g = getDistanceFromPose( x,y );
                 telemetry.addData("Distance", distance_g);
 
                 telemetry.addData("Target X", result.getTx());
                 telemetry.addData("Target Y", result.getTy());
                 telemetry.addData("Target Area", result.getTa());
                 //telemetry.addData("Botpose", botpose.toString());
-                double x =botpose.getPosition().x * 39.37;
-                double y =botpose.getPosition().y * 39.37;
+
                 telemetry.addData("MT1 Location", "("+ x +"," + y +")");
                 telemetry.update();
             } else {
@@ -47,11 +48,11 @@ public class LimelightTest extends LinearOpMode {
             }
         }
     }
-    public double getDistanceFromTag(double ta, double angle) {
-        double scale = 29224.5;
-        double exponent = -1.975592;
-        double scale_tuned = scale + 1958.296 * angle - 280.266 * Math.pow(angle, 2) + 9.090653 * Math.pow(angle, 3);
-        double distance = Math.pow((ta / scale_tuned),1.0 / exponent);
+    public double getDistanceFromPose(double x, double y) {
+       double a =  Math.abs(55 - y);
+        double b = Math.abs(-58 - x);
+        double c_sqrd = Math.pow(a,2) + Math.pow(b,2);
+        double distance = Math.sqrt(c_sqrd);
         return distance;
     }
 
