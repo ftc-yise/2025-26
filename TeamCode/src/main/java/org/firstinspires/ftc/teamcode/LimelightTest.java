@@ -84,7 +84,7 @@ public class LimelightTest extends LinearOpMode {
     }
 
     public double getTurretPower (double ty){
-        double power = -ty * 0.0023 + 0.4;
+        double power = (ty * 0.0023 + 0.4) * -1;
         return power;
 
     }
