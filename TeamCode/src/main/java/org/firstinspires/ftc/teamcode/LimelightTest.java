@@ -59,16 +59,17 @@ public class LimelightTest extends LinearOpMode {
 
 
             if (gamepad1.b) {
-                turret.setPower(0.6);
+                turret.setPower(0.4);
             } else if (gamepad1.x) {
-                turret.setPower(-0.6);
+                turret.setPower(-0.4);
             } else {
-                turret.setPower(0);
                 result = limelight.getLatestResult();
                 if (result != null && result.isValid()) {
-                    turretPower = getTurretPower(result.getTx());
+                    turretPower = getTurretPower(result.getTy());
                     turret.setPower(turretPower);
 
+                } else {
+                    turret.setPower(0);
                 }
             }
 
@@ -82,8 +83,9 @@ public class LimelightTest extends LinearOpMode {
         return distance;
     }
 
-    public double getTurretPower (double tx){
-        double power = tx * 0.0023 + 0.4;
+    public double getTurretPower (double ty){
+        double power = -ty * 0.0023 + 0.4;
         return power;
+
     }
 }
