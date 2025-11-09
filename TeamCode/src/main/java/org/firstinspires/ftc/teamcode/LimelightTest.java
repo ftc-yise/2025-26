@@ -17,7 +17,7 @@ public class LimelightTest extends LinearOpMode {
     private DcMotor turret = null;
 
     private double turretPower = 0.0;
-
+    private double myTy = 0.0;
     @Override
     public void runOpMode() {
 
@@ -33,7 +33,7 @@ public class LimelightTest extends LinearOpMode {
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
-            LLResult result = limelight.getLatestResult();
+            /*LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
                 Pose3D botpose = result.getBotpose();
                 double x =botpose.getPosition().x * 39.37;
@@ -53,26 +53,36 @@ public class LimelightTest extends LinearOpMode {
             } else {
                 telemetry.addData("Limelight", "No Targets");
                 telemetry.update();
-            }
+            }*/
             turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             turret.setDirection(DcMotor.Direction.FORWARD);
 
 
-            if (gamepad1.b) {
+            /*if (gamepad1.b) {
                 turret.setPower(0.4);
-            } else if (gamepad1.x) {
-                turret.setPower(-0.4);
-            } else {
-                result = limelight.getLatestResult();
+            } else if ( result = limelight.getLatestResult();
                 if (result != null && result.isValid()) {
                     turretPower = getTurretPower(result.getTy());
                     turret.setPower(turretPower);
 
                 } else {
                     turret.setPower(0);
-                }
-            }
+                }gamepad1.x) {
+                turret.setPower(-0.4);
+            } else {
 
+            }*/
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                myTy = result.getTy();
+                turretPower = getTurretPower(myTy);
+                telemetry.addData("Power=", turretPower);
+                telemetry.addData("Ty=", myTy);
+                telemetry.update();
+            } else {
+                turretPower = 0;
+            }
+            turret.setPower(turretPower);
         }
     }
     public double getDistanceFromPose(double x, double y) {
@@ -84,8 +94,12 @@ public class LimelightTest extends LinearOpMode {
     }
 
     public double getTurretPower (double ty){
-        double power = (ty * 0.0023 + 0.4) * -1;
-        return power;
-
+        double myOffset = 0.4;
+        double mySlope = 0.0023;
+        if (ty < 0) {
+            return (ty * mySlope - myOffset) * -1;
+        } else {
+            return (ty * mySlope + myOffset) * -1;
+        }
     }
 }
