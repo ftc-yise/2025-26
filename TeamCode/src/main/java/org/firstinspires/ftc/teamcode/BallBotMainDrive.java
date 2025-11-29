@@ -1,10 +1,14 @@
 package org.firstinspires.ftc.teamcode;
 
 import org.firstinspires.ftc.teamcode.yise.DriveClass;
+import org.firstinspires.ftc.teamcode.yise.ShooterClass;
+import org.firstinspires.ftc.teamcode.yise.Spindexer;
+
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import java.io.File;
@@ -21,9 +25,15 @@ import java.io.PrintWriter;
 public class BallBotMainDrive extends LinearOpMode {
 
     // hardware
-    private ColorSensor color = null;
 
     private DcMotor intake = null;
+    private DcMotor turret = null;
+
+    private Servo lift = null;
+    private CRServo hood = null;
+    private CRServo walleft = null;
+    private CRServo wallright = null;
+
 
     // timers and logging
     private final ElapsedTime runtime = new ElapsedTime();
@@ -32,16 +42,26 @@ public class BallBotMainDrive extends LinearOpMode {
     private String logFilePath = null;
     private double logInterval = 0.05; // 20Hz
 
+    boolean RightBumperPressed;
+    boolean LeftBumperPressed;
 
     @Override
     public void runOpMode() throws InterruptedException {
         //class definition
         DriveClass drive = new DriveClass(hardwareMap);
+        ShooterClass shooter = new ShooterClass(hardwareMap);
+        Spindexer spin = new Spindexer(hardwareMap);
+
 
         // hardware map
-        color = hardwareMap.get(ColorSensor.class, "color");
+        hood = hardwareMap.get(CRServo.class, "hood");
+        lift = hardwareMap.get(Servo.class, "lift");
+
+        walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
+        wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
 
         intake = hardwareMap.get(DcMotor.class, "intake");
+        turret = hardwareMap.get(DcMotor.class, "turret");
 
         runtime.reset();
         logTimer.reset();
@@ -49,25 +69,93 @@ public class BallBotMainDrive extends LinearOpMode {
         telemetry.addLine("BallBotFieldDrive - ready (D-Pad override enabled)");
         telemetry.addLine("Left stick = field translation | Right X = rotation | D-Pad = perfect vectors");
         telemetry.update();
+        hood.setPower(0);
+        lift.setPosition(0);
+        spin.startSequence();
+
 
         waitForStart();
         runtime.reset();
 
         while (opModeIsActive()) {
+
+            //spindexer
+            if (gamepad1.right_bumper && !RightBumperPressed) {
+                RightBumperPressed = true;
+
+                if (spin.mode == Spindexer.Mode.SILO_1) {
+                    spin.goToSilo2();
+                } else if (spin.mode == Spindexer.Mode.SILO_2) {
+                    spin.goToSilo3();
+                } else {
+                    spin.goToSilo1();
+                }
+
+            } else if (!gamepad1.right_bumper && RightBumperPressed) {
+                RightBumperPressed = false;
+
+            }
+
+            //hood
+            if (gamepad1.right_stick_button){
+                hood.setPower(1);
+            } else if (gamepad1.left_stick_button){
+                hood.setPower(-1);
+            } else {
+                hood.setPower(0);
+            }
+
+            //lift
+            if (gamepad1.left_bumper && !LeftBumperPressed) {
+                LeftBumperPressed = true;
+
+                lift.setPosition(lift.getPosition() == 0.75 ? 0 : 0.75);
+
+            } else if (!gamepad1.left_bumper && LeftBumperPressed) {
+                LeftBumperPressed = false;
+            }
+
+
+
             //drive class
             drive.handleSpeedToggle(gamepad1);
             drive.updateMotors(gamepad1);
 
+            //intake
             if (gamepad1.right_trigger > 0.75) {
                 intake.setPower(.6);
+                walleft.setPower(1);
+                wallright.setPower(1);
+                spin.setManual(.35);
             } else if (gamepad1.left_trigger > .75) {
                 intake.setPower(-.6);
+                spin.setManual(-.35);
             } else {
                 intake.setPower(0);
+                walleft.setPower(0);
+                wallright.setPower(0);
+            }
+
+            //Shooter caller
+
+            shooter.update(
+                    gamepad1.a,   // STOP
+                    gamepad1.b,   // IDLE
+                    gamepad1.x,   // LOW
+                    gamepad1.y    // FULL
+            );
+
+            //turret
+            if (gamepad1.back){
+                turret.setPower(.5);
+            } else if (gamepad1.start){
+                turret.setPower(-.5);
+            } else {
+                turret.setPower(0);
             }
 
             // START+BACK -> start logging
-            if (gamepad1.start && gamepad1.back && logWriter == null) {
+            if (gamepad1.start && gamepad1.back && logWriter != null) {
                 try {
                     File dir = new File("/sdcard/FIRST");
                     if (!dir.exists()) dir.mkdirs();
@@ -97,7 +185,14 @@ public class BallBotMainDrive extends LinearOpMode {
                 logTimer.reset();
             }
 
+            ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
+
             // telemetry
+            telemetry.addLine("=== SHOOTER ===");
+            telemetry.addData("Mode", s.mode);
+            telemetry.addData("Power", "%.2f", s.appliedPower);
+            telemetry.addData("Velocity", "%.1f", s.velocity);
+
             telemetry.addLine("=== FIELD DRIVE ===");
             telemetry.addData("Speed Mode", d.currentSpeed);
             telemetry.addData("Heading (deg)", "%.2f", d.headingDeg);
