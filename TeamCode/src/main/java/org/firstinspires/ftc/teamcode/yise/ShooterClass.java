@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.yise;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class ShooterClass {
@@ -16,9 +17,9 @@ public class ShooterClass {
 
     // Power levels
     private final double POWER_STOP = 0.0;
-    private final double POWER_IDLE = 0.10;
-    private final double POWER_FULL = 0.85;
-    private final double POWER_LOW  = 0.60;
+    private final double POWER_IDLE = 0.05;
+    private final double POWER_FULL = 0.4;
+    private final double POWER_LOW  = 0.10;
 
     // Telemetry storage
     public static class ShooterTelemetry {
@@ -33,10 +34,13 @@ public class ShooterClass {
             shooter = hardwareMap.get(DcMotorEx.class, "shoot");
             shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            shooter.setDirection(DcMotorSimple.Direction.REVERSE);
         } catch (Exception e) {
             shooterLegacy = hardwareMap.get(DcMotor.class, "shoot");
             shooterLegacy.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             shooterLegacy.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            shooter.setDirection(DcMotorSimple.Direction.REVERSE);
+
         }
     }
 

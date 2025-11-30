@@ -20,7 +20,7 @@ public class Spindexer {
         SILO_3,
         MANUAL,
         TARGET,
-        SEQUENCE,        // NEW: automatic silo sequence
+        SEQUENCE
     }
 
     public Mode mode = Mode.NEUTRAL;
@@ -36,24 +36,17 @@ public class Spindexer {
     // Constants
     private final double MAX_VOLTAGE = 3.3;
 
-    // PID constants
-    private final double kP = 0.022;
-    private final double kI = 0.00035;
-    private final double kD = 0.001;
-
-    // PID state
-    private double integral = 0;
-    private double lastError = 0;
-    private double lastTime = System.nanoTime();
+    // P-only control
+    private final double kP = 0.0038;
 
     // Drift autocorrect timer
     private long lastCorrectionTime = 0;
-    private final long CORRECTION_INTERVAL_MS = 2250; // every ~2.2 sec
-    private final double DRIFT_THRESHOLD = 7;         // deg
+    private final long CORRECTION_INTERVAL_MS = 2250;
+    private final double DRIFT_THRESHOLD = 7;
 
-    // Rate limiting (smooth accel)
+    // Rate limiting
     private double lastPower = 0;
-    private final double MAX_DELTA = 0.04; // accel limit per update
+    private final double MAX_DELTA = 0.04;
 
     // Sequencing state
     private int siloStep = 0;
@@ -74,8 +67,8 @@ public class Spindexer {
         public double appliedPower;
         public double manualPower;
         public double pidP;
-        public double pidI;
-        public double pidD;
+        public double pidI;   // always 0 for P-only
+        public double pidD;   // always 0 for P-only
     }
 
     private TelemetryPacket t = new TelemetryPacket();
@@ -84,9 +77,7 @@ public class Spindexer {
     private FileWriter csv;
     private DecimalFormat df = new DecimalFormat("0.00");
 
-    // ─────────────────────────────────────────────────────────────────────
-    // CONSTRUCTOR
-    // ─────────────────────────────────────────────────────────────────────
+    // Constructor
     public Spindexer(HardwareMap hardwaremap) {
         spindexer = hardwaremap.get(CRServo.class, "spin");
         encoder = hardwaremap.get(AnalogInput.class, "spinInput");
@@ -100,9 +91,9 @@ public class Spindexer {
         sequenceActive = false;
     }
 
-    public void goToSilo1() { targetAngleDeg = 120; mode = Mode.SILO_1; }
-    public void goToSilo2() { targetAngleDeg = 240; mode = Mode.SILO_2; }
-    public void goToSilo3() { targetAngleDeg = 0;   mode = Mode.SILO_3; }
+    public void goToSilo1() { targetAngleDeg = 221.2; mode = Mode.SILO_1; }
+    public void goToSilo2() { targetAngleDeg = 100.5; mode = Mode.SILO_2; }
+    public void goToSilo3() { targetAngleDeg = 339.7; mode = Mode.SILO_3; }
 
     public void setManual(double power) {
         manualPower = power;
@@ -154,11 +145,9 @@ public class Spindexer {
     // ─────────────────────────────────────────────────────────────────────
     public void update() {
 
-        // Read angle
         double voltage = encoder.getVoltage();
         double current = normalize((voltage / MAX_VOLTAGE) * 360.0);
 
-        // Auto-sequence logic
         if (mode == Mode.SEQUENCE) runSequence();
 
         double angleError = smallestAngleError(targetAngleDeg, current);
@@ -172,10 +161,9 @@ public class Spindexer {
             power = 0;
 
         } else {
-            power = pidControl(angleError);
+            power = pControl(angleError);
         }
 
-        // Drift auto-correction
         long now = System.currentTimeMillis();
         if (now - lastCorrectionTime > CORRECTION_INTERVAL_MS &&
                 Math.abs(angleError) < ANGLE_TOLERANCE &&
@@ -185,13 +173,10 @@ public class Spindexer {
             lastCorrectionTime = now;
         }
 
-        // Smooth acceleration
         power = rateLimit(power);
 
-        // Apply power
         spindexer.setPower(power);
 
-        // Telemetry
         t.mode = mode;
         t.voltage = voltage;
         t.currentAngle = current;
@@ -200,38 +185,18 @@ public class Spindexer {
         t.appliedPower = power;
         t.manualPower = manualPower;
 
-        // Log to CSV
+        t.pidP = kP * angleError;
+        t.pidI = 0;
+        t.pidD = 0;
+
         writeCSV(current, targetAngleDeg, angleError, power);
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // PID CONTROL
+    // P-ONLY CONTROL
     // ─────────────────────────────────────────────────────────────────────
-    private double pidControl(double error) {
-        double dt = (System.nanoTime() - lastTime) / 1e9;
-        lastTime = System.nanoTime();
-
-        // Integral with anti-windup
-        integral += error * dt;
-        integral = clamp(integral, -50, 50);
-
-        // Derivative
-        double derivative = (error - lastError) / dt;
-        derivative = derivative * 0.7; // low-pass filter smoothing
-
-        lastError = error;
-
-        // PID output
-        double p = kP * error;
-        double i = kI * integral;
-        double d = kD * derivative;
-
-        // Save telemetry PID terms
-        t.pidP = p;
-        t.pidI = i;
-        t.pidD = d;
-
-        return p + i + d;
+    private double pControl(double error) {
+        return kP * error;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -258,7 +223,7 @@ public class Spindexer {
     }
 
     private boolean atTarget() {
-        return Math.abs(lastError) < ANGLE_TOLERANCE;
+        return Math.abs(t.angleError) < ANGLE_TOLERANCE;
     }
 
     private double smallestAngleError(double target, double current) {
@@ -272,10 +237,6 @@ public class Spindexer {
         return Math.max(min, Math.min(max, p));
     }
 
-    private double clamp(double p) {
-        return clamp(p, -1, 1);
-    }
-
     // CSV logger
     private void writeCSV(double angle, double target, double error, double power) {
         if (csv == null) return;
@@ -284,15 +245,12 @@ public class Spindexer {
                     df.format(angle) + "," +
                     df.format(target) + "," +
                     df.format(error) + "," +
-                    df.format(t.pidP) + "," +
-                    df.format(t.pidI) + "," +
-                    df.format(t.pidD) + "," +
+                    df.format(t.pidP) + ",0,0," +
                     df.format(power) + "\n");
             csv.flush();
         } catch (IOException ignored) {}
     }
 
-    // Public telemetry getter
     public TelemetryPacket getTelemetry() { return t; }
 
     public void stop() {

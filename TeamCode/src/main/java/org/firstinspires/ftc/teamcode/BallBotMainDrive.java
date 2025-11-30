@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -60,6 +61,8 @@ public class BallBotMainDrive extends LinearOpMode {
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
 
+        wallright.setDirection(CRServo.Direction.REVERSE);
+
         intake = hardwareMap.get(DcMotor.class, "intake");
         turret = hardwareMap.get(DcMotor.class, "turret");
 
@@ -71,7 +74,7 @@ public class BallBotMainDrive extends LinearOpMode {
         telemetry.update();
         hood.setPower(0);
         lift.setPosition(0);
-        spin.startSequence();
+        spin.goToSilo1();
 
 
         waitForStart();
@@ -126,10 +129,10 @@ public class BallBotMainDrive extends LinearOpMode {
                 intake.setPower(.6);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.35);
+                spin.setManual(.15);
             } else if (gamepad1.left_trigger > .75) {
                 intake.setPower(-.6);
-                spin.setManual(-.35);
+                spin.setManual(-.15);
             } else {
                 intake.setPower(0);
                 walleft.setPower(0);
@@ -144,6 +147,8 @@ public class BallBotMainDrive extends LinearOpMode {
                     gamepad1.x,   // LOW
                     gamepad1.y    // FULL
             );
+
+
 
             //turret
             if (gamepad1.back){
@@ -185,13 +190,15 @@ public class BallBotMainDrive extends LinearOpMode {
                 logTimer.reset();
             }
 
-            ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
+            ShooterClass.ShooterTelemetry shoot = shooter.getTelemetry();
+            spin.update();
+            Spindexer.TelemetryPacket spina = spin.getTelemetry();
 
             // telemetry
             telemetry.addLine("=== SHOOTER ===");
-            telemetry.addData("Mode", s.mode);
-            telemetry.addData("Power", "%.2f", s.appliedPower);
-            telemetry.addData("Velocity", "%.1f", s.velocity);
+            telemetry.addData("Mode", shoot.mode);
+            telemetry.addData("Power", "%.2f", shoot.appliedPower);
+            telemetry.addData("Velocity", "%.1f", shoot.velocity);
 
             telemetry.addLine("=== FIELD DRIVE ===");
             telemetry.addData("Speed Mode", d.currentSpeed);
@@ -202,6 +209,15 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Motor LF/RF/LB/RB", "%.3f / %.3f / %.3f / %.3f", d.lf, d.rf, d.lb, d.rb);
             telemetry.addData("Pose (x,y,h)", "%.2f, %.2f, %.2f", d.pose.x, d.pose.y, d.pose.h);
             telemetry.addData("Logging", logWriter != null ? ("ON: " + logFilePath) : "OFF");
+
+
+            telemetry.addLine("=== SPINDEXER ===");
+            telemetry.addData("Mode", spina.mode);
+            telemetry.addData("Voltage", "%.3f", spina.voltage);
+            telemetry.addData("Angle", "%.1f°", spina.currentAngle);
+            telemetry.addData("Target", "%.1f°", spina.targetAngle);
+            telemetry.addData("Error", "%.1f°", spina.angleError);
+            telemetry.addData("Power", "%.2f", spina.appliedPower);
             telemetry.update();
         } // end while opModeIsActive
 
