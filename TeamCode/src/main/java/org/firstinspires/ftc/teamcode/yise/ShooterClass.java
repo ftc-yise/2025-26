@@ -18,8 +18,8 @@ public class ShooterClass {
     // Power levels
     private final double POWER_STOP = 0.0;
     private final double POWER_IDLE = 0.05;
-    private final double POWER_FULL = 0.4;
-    private final double POWER_LOW  = 0.10;
+    private final double POWER_FULL = 1;
+    private final double POWER_LOW  = 0.75;
 
     // Telemetry storage
     public static class ShooterTelemetry {
@@ -45,7 +45,7 @@ public class ShooterClass {
     }
 
     // --- MAIN UPDATE ---
-    public void update(boolean a, boolean b, boolean x, boolean y) {
+    public void update(boolean a, boolean x, boolean y) {
         // A = STOP
         // B = IDLE
         // X = LOW (60%)
@@ -53,8 +53,8 @@ public class ShooterClass {
 
         if (y) shooterMode = ShooterMode.FULL;
         else if (x) shooterMode = ShooterMode.LOW;
-        else if (!x && !y && !b && !a) shooterMode = ShooterMode.IDLE;
         else if (a) shooterMode = ShooterMode.STOP;
+        else shooterMode = ShooterMode.IDLE;
 
         double p = 0;
 

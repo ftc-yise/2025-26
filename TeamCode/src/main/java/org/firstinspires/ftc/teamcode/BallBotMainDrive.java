@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import org.firstinspires.ftc.teamcode.yise.DriveClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterClass;
+import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -30,7 +31,6 @@ public class BallBotMainDrive extends LinearOpMode {
     private DcMotor intake = null;
     private DcMotor turret = null;
 
-    private Servo lift = null;
     private CRServo hood = null;
     private CRServo walleft = null;
     private CRServo wallright = null;
@@ -52,11 +52,11 @@ public class BallBotMainDrive extends LinearOpMode {
         DriveClass drive = new DriveClass(hardwareMap);
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
 
 
         // hardware map
         hood = hardwareMap.get(CRServo.class, "hood");
-        lift = hardwareMap.get(Servo.class, "lift");
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
@@ -73,7 +73,7 @@ public class BallBotMainDrive extends LinearOpMode {
         telemetry.addLine("Left stick = field translation | Right X = rotation | D-Pad = perfect vectors");
         telemetry.update();
         hood.setPower(0);
-        lift.setPosition(0);
+        //shooter.update(false, false, true); // Y = FULL
         spin.goToSilo1();
 
 
@@ -83,7 +83,18 @@ public class BallBotMainDrive extends LinearOpMode {
         while (opModeIsActive()) {
 
             //spindexer
-            if (gamepad1.right_bumper && !RightBumperPressed) {
+            if (gamepad1.left_bumper && !autoShoot.isBusy()) {
+                shooter.update(false, false, true); // Y = FULL
+                hood.setPower(1);
+                autoShoot.startCycle();
+            } else if (gamepad1.right_bumper && !autoShoot.isBusy()){
+                shooter.update(false, true, false); // Y = FULL
+                hood.setPower(-1);
+                autoShoot.startCycle();
+            }
+            autoShoot.update();
+
+            /*if (gamepad1.right_bumper && !RightBumperPressed) {
                 RightBumperPressed = true;
 
                 if (spin.mode == Spindexer.Mode.SILO_1) {
@@ -97,28 +108,26 @@ public class BallBotMainDrive extends LinearOpMode {
             } else if (!gamepad1.right_bumper && RightBumperPressed) {
                 RightBumperPressed = false;
 
-            }
-
-            //hood
-            if (gamepad1.right_stick_button){
-                hood.setPower(1);
-            } else if (gamepad1.left_stick_button){
-                hood.setPower(-1);
-            } else {
-                hood.setPower(0);
-            }
+            }*/
 
             //lift
-            if (gamepad1.left_bumper && !LeftBumperPressed) {
+           /* if (gamepad1.left_bumper && !LeftBumperPressed) {
                 LeftBumperPressed = true;
 
                 lift.setPosition(lift.getPosition() == 0.75 ? 0 : 0.75);
 
             } else if (!gamepad1.left_bumper && LeftBumperPressed) {
                 LeftBumperPressed = false;
+            }*/
+
+            //hood
+            if (gamepad1.right_stick_button && !autoShoot.isBusy()){
+                hood.setPower(1);
+            } else if (gamepad1.left_stick_button && !autoShoot.isBusy()){
+                hood.setPower(-1);
+            } else if (!autoShoot.isBusy()) {
+                hood.setPower(0);
             }
-
-
 
             //drive class
             drive.handleSpeedToggle(gamepad1);
@@ -129,24 +138,21 @@ public class BallBotMainDrive extends LinearOpMode {
                 intake.setPower(.6);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.15);
+                spin.setManual(.1);
             } else if (gamepad1.left_trigger > .75) {
                 intake.setPower(-.6);
-                spin.setManual(-.15);
+                walleft.setPower(1);
+                wallright.setPower(1);
+                spin.setManual(.1);
             } else {
                 intake.setPower(0);
                 walleft.setPower(0);
                 wallright.setPower(0);
+
+                if (!autoShoot.isBusy()) {
+                    spin.setNeutral();
+                }
             }
-
-            //Shooter caller
-
-            shooter.update(
-                    gamepad1.a,   // STOP
-                    gamepad1.b,   // IDLE
-                    gamepad1.x,   // LOW
-                    gamepad1.y    // FULL
-            );
 
 
 
