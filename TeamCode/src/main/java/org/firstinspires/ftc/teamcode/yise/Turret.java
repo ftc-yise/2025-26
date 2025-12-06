@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class Turret {
 
@@ -14,6 +15,11 @@ public class Turret {
     private double myTy = 0.0;
     public DcMotor turret;
     public Limelight3A limelight;
+    public Telemetry telemetry;
+    public enum turretAlliance{
+        RED,
+        BLUE,
+    }
     public enum turretDirection {
         LEFT,
         RIGHT,
@@ -25,7 +31,9 @@ public class Turret {
     }
     public turretMode mode;
 
-    public Turret (HardwareMap hardwareMap){
+    public Turret (HardwareMap hardwareMap, turretAlliance alliance, Telemetry telem){
+        telemetry = telem;
+
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turret.setDirection(DcMotor.Direction.REVERSE);
@@ -33,21 +41,24 @@ public class Turret {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100); // This sets how often we ask Limelight for data (100 times per second)
         limelight.start(); // This tells Limelight to start looking!
-        limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
+        if (alliance == turretAlliance.RED) {
+            limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
+        }else if (alliance== turretAlliance.BLUE) {
+            limelight.pipelineSwitch(0); // Switch to pipeline number 0 which is ID:??
+        }
         mode = turretMode.MANUAL;
     }
 
     public void changeMode() {
         if (mode == turretMode.AUTO) {
             mode = turretMode.MANUAL;
-        } else-if (mode == turretMode.MANUAL) {
+        } else if (mode == turretMode.MANUAL) {
             mode = turretMode.AUTO;
         }
     }
     public void manualMode(turretDirection direction) {
-        if (mode == turretMode.AUTO) {
-            mode = turretMode.MANUAL;
-        }
+        mode = turretMode.MANUAL;
+
         switch (direction) {
             case LEFT:
                 turret.setPower(-0.7);
@@ -61,19 +72,18 @@ public class Turret {
         }
     }
     public void autoMode(){
-        if (mode == turretMode.MANUAL){
-            mode = turretMode.AUTO;
-        }
+        mode = turretMode.AUTO;
+
         result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             myTy = result.getTy();
             turretPower = getTurretPower(myTy, myOffset, mySlope);
-            //telemetry.addData("Power=", turretPower);
             //telemetry.addData("Ty=", myTy);
-            //telemetry.update();
         } else {
             turretPower = 0;
         }
+        //telemetry.addData("Power=", turretPower);
+        //telemetry.update();
         turret.setPower(turretPower);
     }
     public void stop(){
