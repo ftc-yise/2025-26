@@ -23,6 +23,22 @@ public class Spindexer {
         SEQUENCE
     }
 
+    public enum Silo1 {
+        GREEN,
+        PURPLE,
+        NONE
+    }
+    public enum Silo2 {
+        GREEN,
+        PURPLE,
+        NONE
+    }
+    public enum Silo3 {
+        GREEN,
+        PURPLE,
+        NONE
+    }
+
     public Mode mode = Mode.NEUTRAL;
 
     // Hardware
@@ -91,9 +107,9 @@ public class Spindexer {
         sequenceActive = false;
     }
 
-    public void goToSilo1() { targetAngleDeg = 221.2; mode = Mode.SILO_1; }
-    public void goToSilo2() { targetAngleDeg = 100.5; mode = Mode.SILO_2; }
-    public void goToSilo3() { targetAngleDeg = 339.7; mode = Mode.SILO_3; }
+    public void goToSilo1() { targetAngleDeg = 17.2; mode = Mode.SILO_1; }
+    public void goToSilo2() { targetAngleDeg = 140; mode = Mode.SILO_2; }
+    public void goToSilo3() { targetAngleDeg = 260; mode = Mode.SILO_3; }
 
     public void setManual(double power) {
         manualPower = power;
