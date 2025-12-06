@@ -73,7 +73,7 @@ public class BallBotMainDrive extends LinearOpMode {
         telemetry.addLine("Left stick = field translation | Right X = rotation | D-Pad = perfect vectors");
         telemetry.update();
         hood.setPower(0);
-        shooter.update(false, false, true); // Y = FULL
+        //shooter.update(false, false, true); // Y = FULL
         spin.goToSilo1();
 
 
