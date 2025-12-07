@@ -5,6 +5,7 @@ import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
+import org.firstinspires.ftc.teamcode.yise.Parameters;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -27,7 +28,6 @@ import java.io.PrintWriter;
 public class BallBotMainDrive extends LinearOpMode {
 
     // hardware
-
     private DcMotor intake = null;
     private DcMotor turret = null;
 
@@ -48,6 +48,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
     boolean rightBumperPressed;
     boolean firstRun = true;
+    Turret.turretAlliance alliance = Turret.turretAlliance.RED;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -56,8 +57,13 @@ public class BallBotMainDrive extends LinearOpMode {
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
-        org.firstinspires.ftc.teamcode.yise.Turret turret = new org.firstinspires.ftc.teamcode.yise.Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
+        if (Parameters.allianceColor == Parameters.Color.RED) {
+            alliance = Turret.turretAlliance.RED;
+        } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
+            alliance = Turret.turretAlliance.BLUE;
+        }
+        Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
         // hardware map
         hood = hardwareMap.get(CRServo.class, "hood");
@@ -236,7 +242,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
             telemetry.addLine("=== Turret ===");
             telemetry.addData("mode: ", turret.mode);
-            telemetry.addData("power: ",turret.turret.getPower());
+            telemetry.addData("power: ",turret.turretPower);
             telemetry.addData("ty: ", turret.myTy);
             telemetry.update();
         } // end while opModeIsActive

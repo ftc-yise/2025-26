@@ -5,12 +5,16 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import com.bylazar.configurables.annotations.Configurable;
 
+@Configurable
 public class Turret {
 
     LLResult result = null;
     public static double myOffset = 0.2;
-    public static double mySlope = 0.2;
+    public static double mySlope = 0.4;
+    public static double floor = 0.3;
+    public static double ceiling = 0.7;
     public double turretPower = 0.0;
     public double myTy = 0.0;
     public DcMotor turret;
@@ -89,14 +93,28 @@ public class Turret {
     public void stop(){
         turret.setPower(0);
     }
-    private double getTurretPower (double ty, double myOffset, double mySlope){
+    private double getTurretPower (double ty, double myOffset, double mySlope) {
+        double myPower = 0.0;
+
         if (ty < 0) {
-            return -.2*(ty * mySlope + myOffset);
-        } else if (ty > 0){
-            return -.2*(ty * mySlope - myOffset);
+            myPower = -.2*(ty * mySlope + myOffset);
+            if (myPower > 0.7) {
+                myPower = ceiling;
+            } else if (myPower < 0.35) {
+                myPower = floor;
+            }
+            return myPower;
+        } else if (ty > 0) {
+            myPower = -.2*(ty * mySlope - myOffset);
+            if (myPower < -0.7) {
+                myPower = -1 * ceiling;
+            } else if (myPower > -0.35) {
+                myPower = -1 * floor;
+            }
+            return myPower;
         }
         else {
-            return 0;
+            return myPower;
         }
     }
 }
