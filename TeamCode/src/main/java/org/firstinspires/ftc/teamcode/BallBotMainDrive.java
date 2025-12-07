@@ -4,12 +4,12 @@ import org.firstinspires.ftc.teamcode.yise.DriveClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
+import org.firstinspires.ftc.teamcode.yise.Turret;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -35,6 +35,9 @@ public class BallBotMainDrive extends LinearOpMode {
     private CRServo walleft = null;
     private CRServo wallright = null;
 
+    private Servo footL = null;
+    private Servo footR = null;
+
 
     // timers and logging
     private final ElapsedTime runtime = new ElapsedTime();
@@ -43,8 +46,8 @@ public class BallBotMainDrive extends LinearOpMode {
     private String logFilePath = null;
     private double logInterval = 0.05; // 20Hz
 
-    boolean RightBumperPressed;
-    boolean LeftBumperPressed;
+    boolean rightBumperPressed;
+    boolean firstRun = true;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -53,6 +56,7 @@ public class BallBotMainDrive extends LinearOpMode {
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
+        org.firstinspires.ftc.teamcode.yise.Turret turret = new org.firstinspires.ftc.teamcode.yise.Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
 
         // hardware map
@@ -60,11 +64,13 @@ public class BallBotMainDrive extends LinearOpMode {
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
+        footL = hardwareMap.get(Servo.class, "footL");
+        footR = hardwareMap.get(Servo.class, "footR");
 
         wallright.setDirection(CRServo.Direction.REVERSE);
 
+
         intake = hardwareMap.get(DcMotor.class, "intake");
-        turret = hardwareMap.get(DcMotor.class, "turret");
 
         runtime.reset();
         logTimer.reset();
@@ -82,48 +88,36 @@ public class BallBotMainDrive extends LinearOpMode {
 
         while (opModeIsActive()) {
 
+            if(firstRun){
+                shooter.setPower(.15);
+                firstRun = false;
+            }
+
             //spindexer
-            if (gamepad1.left_bumper && !autoShoot.isBusy()) {
+            if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true); // Y = FULL
-                hood.setPower(1);
-                autoShoot.startCycle();
-            } else if (gamepad1.right_bumper && !autoShoot.isBusy()){
-                shooter.update(false, true, false); // Y = FULL
                 hood.setPower(-1);
+                autoShoot.startCycle();
+            } else if (gamepad2.x && !autoShoot.isBusy()){
+                shooter.update(false, false, false); // X = FULL
+                hood.setPower(1);
                 autoShoot.startCycle();
             }
             autoShoot.update();
 
-            /*if (gamepad1.right_bumper && !RightBumperPressed) {
-                RightBumperPressed = true;
-
-                if (spin.mode == Spindexer.Mode.SILO_1) {
-                    spin.goToSilo2();
-                } else if (spin.mode == Spindexer.Mode.SILO_2) {
-                    spin.goToSilo3();
-                } else {
-                    spin.goToSilo1();
-                }
-
-            } else if (!gamepad1.right_bumper && RightBumperPressed) {
-                RightBumperPressed = false;
-
-            }*/
-
-            //lift
-           /* if (gamepad1.left_bumper && !LeftBumperPressed) {
-                LeftBumperPressed = true;
-
-                lift.setPosition(lift.getPosition() == 0.75 ? 0 : 0.75);
-
-            } else if (!gamepad1.left_bumper && LeftBumperPressed) {
-                LeftBumperPressed = false;
-            }*/
+            //foot
+            if (gamepad1.dpad_down){
+                footL.setPosition(-1);
+                footR.setPosition(1);
+            } else if (gamepad1.dpad_up){
+                footL.setPosition(1);
+                footR.setPosition(-1);
+            }
 
             //hood
-            if (gamepad1.right_stick_button && !autoShoot.isBusy()){
+            if (gamepad2.dpad_up && !autoShoot.isBusy()){
                 hood.setPower(1);
-            } else if (gamepad1.left_stick_button && !autoShoot.isBusy()){
+            } else if (gamepad2.dpad_down && !autoShoot.isBusy()){
                 hood.setPower(-1);
             } else if (!autoShoot.isBusy()) {
                 hood.setPower(0);
@@ -143,7 +137,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 intake.setPower(-.6);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.1);
+                spin.setManual(.2);
             } else {
                 intake.setPower(0);
                 walleft.setPower(0);
@@ -157,12 +151,27 @@ public class BallBotMainDrive extends LinearOpMode {
 
 
             //turret
-            if (gamepad1.back){
-                turret.setPower(.5);
-            } else if (gamepad1.start){
-                turret.setPower(-.5);
-            } else {
-                turret.setPower(0);
+            if (turret.mode == Turret.turretMode.AUTO) {
+                if (gamepad2.right_bumper && !rightBumperPressed) {
+                    rightBumperPressed = true;
+                    turret.manualMode(Turret.turretDirection.STOP);
+                } else {
+                    turret.autoMode();
+                }
+            } else if (turret.mode == Turret.turretMode.MANUAL) {
+                if (gamepad2.right_bumper && !rightBumperPressed) {
+                    rightBumperPressed = true;
+                    turret.autoMode();
+                } else if (gamepad2.dpad_left) {
+                    turret.manualMode(Turret.turretDirection.LEFT);
+                } else if (gamepad2.dpad_right) {
+                    turret.manualMode(Turret.turretDirection.RIGHT);
+                } else {
+                    turret.stop();
+                }
+            }
+            if (!gamepad2.right_bumper && rightBumperPressed == true) {
+                rightBumperPressed = false;
             }
 
             // START+BACK -> start logging
@@ -203,7 +212,7 @@ public class BallBotMainDrive extends LinearOpMode {
             // telemetry
             telemetry.addLine("=== SHOOTER ===");
             telemetry.addData("Mode", shoot.mode);
-            telemetry.addData("Power", "%.2f", shoot.appliedPower);
+            telemetry.addData("Power", "%.2f", shooter.getPower());
             telemetry.addData("Velocity", "%.1f", shoot.velocity);
 
             telemetry.addLine("=== FIELD DRIVE ===");
@@ -224,6 +233,9 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Target", "%.1f°", spina.targetAngle);
             telemetry.addData("Error", "%.1f°", spina.angleError);
             telemetry.addData("Power", "%.2f", spina.appliedPower);
+
+            telemetry.addLine("=== Turret ===");
+            telemetry.addData("mode: ", turret.mode);
             telemetry.update();
         } // end while opModeIsActive
 

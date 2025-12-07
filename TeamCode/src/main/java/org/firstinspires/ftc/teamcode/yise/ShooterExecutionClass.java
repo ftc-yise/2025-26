@@ -67,10 +67,11 @@ public class ShooterExecutionClass {
         switch (state) {
 
             case IDLE:
+                shooter.update(false, false, false); // Y = FULL
                 return;
 
             case MOVE_TO_SILO:
-                if (spindexer.getTelemetry().angleError < 1) {
+                if (spindexer.getTelemetry().angleError < 3) {
                     state = State.SPIN_WAIT;
                     timer.reset();
                 }
@@ -86,10 +87,18 @@ public class ShooterExecutionClass {
 
             case SPIN_UP_SHOOTER:
                 // give shooter time to reach speed
-                if (timer.seconds() > 0.35) {
-                    lift.setPosition(Servo.MAX_POSITION);
-                    timer.reset();
-                    state = State.FIRE_LIFT_UP;
+                if (shotsFired >= 2){
+                    if (timer.seconds() > 0.35) {
+                        lift.setPosition(Servo.MAX_POSITION);
+                        timer.reset();
+                        state = State.FIRE_LIFT_UP;
+                    }
+                } else {
+                    if (timer.seconds() > 0.55) {
+                        lift.setPosition(Servo.MAX_POSITION);
+                        timer.reset();
+                        state = State.FIRE_LIFT_UP;
+                    }
                 }
                 break;
 
@@ -102,7 +111,7 @@ public class ShooterExecutionClass {
                 break;
 
             case FIRE_LIFT_DOWN:
-                if (timer.seconds() > 0.25) {
+                if (timer.seconds() > 0.45) {
                     shotsFired++;
 
                     if (shotsFired >= 3) {

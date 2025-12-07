@@ -44,7 +44,7 @@ public class Turret {
         if (alliance == turretAlliance.RED) {
             limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
         }else if (alliance== turretAlliance.BLUE) {
-            limelight.pipelineSwitch(0); // Switch to pipeline number 0 which is ID:??
+            limelight.pipelineSwitch(3); // Switch to pipeline number 3 which is ID:20
         }
         mode = turretMode.MANUAL;
     }
