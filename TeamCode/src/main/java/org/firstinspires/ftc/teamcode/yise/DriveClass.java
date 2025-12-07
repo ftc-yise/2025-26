@@ -243,6 +243,14 @@ public class DriveClass {
         t_pose = pose;
 
     }
+
+    public void setAutoPower(double leftFrontPower, double rightFrontPower, double leftBackPower, double rightBackPower){
+        // Send calculated power to wheels
+        leftFrontDrive.setPower(leftFrontPower);
+        rightFrontDrive.setPower(rightFrontPower);
+        leftBackDrive.setPower(leftBackPower);
+        rightBackDrive.setPower(rightBackPower);
+    }
     //telemetry
     public static class DriveTelemetry {
         public double rawX, rawY, rawTurn;
