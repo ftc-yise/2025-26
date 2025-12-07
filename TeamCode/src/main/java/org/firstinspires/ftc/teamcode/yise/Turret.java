@@ -89,14 +89,24 @@ public class Turret {
     public void stop(){
         turret.setPower(0);
     }
-    private double getTurretPower (double ty, double myOffset, double mySlope){
+    private double getTurretPower (double ty, double myOffset, double mySlope) {
+        double myPower = 0.0;
+
         if (ty < 0) {
-            return -.2*(ty * mySlope + myOffset);
-        } else if (ty > 0){
-            return -.2*(ty * mySlope - myOffset);
+            myPower = -.2*(ty * mySlope + myOffset);
+            if (myPower > 0.7) {
+                myPower = 0.7;
+            }
+            return myPower;
+        } else if (ty > 0) {
+            myPower = -.2*(ty * mySlope - myOffset);
+            if (myPower < -0.7) {
+                myPower = -0.7;
+            }
+            return myPower;
         }
         else {
-            return 0;
+            return myPower;
         }
     }
 }
