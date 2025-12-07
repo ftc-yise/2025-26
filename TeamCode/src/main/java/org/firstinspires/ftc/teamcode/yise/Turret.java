@@ -11,8 +11,8 @@ public class Turret {
     LLResult result = null;
     public static double myOffset = 0.2;
     public static double mySlope = 0.2;
-    private double turretPower = 0.0;
-    private double myTy = 0.0;
+    public double turretPower = 0.0;
+    public double myTy = 0.0;
     public DcMotor turret;
     public Limelight3A limelight;
     public Telemetry telemetry;
@@ -44,7 +44,7 @@ public class Turret {
         if (alliance == turretAlliance.RED) {
             limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
         }else if (alliance== turretAlliance.BLUE) {
-            limelight.pipelineSwitch(0); // Switch to pipeline number 0 which is ID:??
+            limelight.pipelineSwitch(3); // Switch to pipeline number 3 which is ID:20
         }
         mode = turretMode.MANUAL;
     }

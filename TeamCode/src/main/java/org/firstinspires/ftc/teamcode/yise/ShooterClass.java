@@ -17,9 +17,9 @@ public class ShooterClass {
 
     // Power levels
     private final double POWER_STOP = 0.0;
-    private final double POWER_IDLE = 0.05;
-    private final double POWER_FULL = 1;
-    private final double POWER_LOW  = 0.75;
+    private final double POWER_IDLE = 0.2;
+    private final double POWER_FULL = .95;
+    private final double POWER_LOW  = .72;
 
     // Telemetry storage
     public static class ShooterTelemetry {
@@ -32,12 +32,12 @@ public class ShooterClass {
     public ShooterClass(HardwareMap hardwareMap) {
         try {
             shooter = hardwareMap.get(DcMotorEx.class, "shoot");
-            shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            shooter.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             shooter.setDirection(DcMotorSimple.Direction.REVERSE);
         } catch (Exception e) {
             shooterLegacy = hardwareMap.get(DcMotor.class, "shoot");
-            shooterLegacy.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            shooterLegacy.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             shooterLegacy.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             shooter.setDirection(DcMotorSimple.Direction.REVERSE);
 
@@ -73,7 +73,7 @@ public class ShooterClass {
         t.velocity = getVelocity();
     }
 
-    private void setPower(double p) {
+    public void setPower(double p) {
         if (shooter != null) shooter.setPower(p);
         else if (shooterLegacy != null) shooterLegacy.setPower(p);
     }
@@ -92,5 +92,10 @@ public class ShooterClass {
     public void stop() {
         setPower(0);
         shooterMode = ShooterMode.STOP;
+    }
+
+    public double getPower(){
+        double power = shooter.getPower();
+        return(power);
     }
 }
