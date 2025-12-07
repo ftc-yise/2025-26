@@ -89,7 +89,7 @@ public class BallBotMainDrive extends LinearOpMode {
         while (opModeIsActive()) {
 
             if(firstRun){
-                shooter.setPower(.15);
+                shooter.setPower(.35);
                 firstRun = false;
             }
 
@@ -99,7 +99,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 hood.setPower(-1);
                 autoShoot.startCycle();
             } else if (gamepad2.x && !autoShoot.isBusy()){
-                shooter.update(false, false, false); // X = FULL
+                shooter.update(false, true, false); // X = FULL
                 hood.setPower(1);
                 autoShoot.startCycle();
             }
@@ -236,6 +236,8 @@ public class BallBotMainDrive extends LinearOpMode {
 
             telemetry.addLine("=== Turret ===");
             telemetry.addData("mode: ", turret.mode);
+            telemetry.addData("power: ",turret.turret.getPower());
+            telemetry.addData("ty: ", turret.myTy);
             telemetry.update();
         } // end while opModeIsActive
 

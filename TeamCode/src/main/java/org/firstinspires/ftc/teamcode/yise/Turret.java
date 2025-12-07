@@ -11,8 +11,8 @@ public class Turret {
     LLResult result = null;
     public static double myOffset = 0.2;
     public static double mySlope = 0.2;
-    private double turretPower = 0.0;
-    private double myTy = 0.0;
+    public double turretPower = 0.0;
+    public double myTy = 0.0;
     public DcMotor turret;
     public Limelight3A limelight;
     public Telemetry telemetry;

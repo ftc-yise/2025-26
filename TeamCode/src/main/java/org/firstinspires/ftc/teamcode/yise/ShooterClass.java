@@ -19,7 +19,7 @@ public class ShooterClass {
     private final double POWER_STOP = 0.0;
     private final double POWER_IDLE = 0.2;
     private final double POWER_FULL = .95;
-    private final double POWER_LOW  = .65;
+    private final double POWER_LOW  = .72;
 
     // Telemetry storage
     public static class ShooterTelemetry {

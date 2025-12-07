@@ -87,14 +87,14 @@ public class ShooterExecutionClass {
 
             case SPIN_UP_SHOOTER:
                 // give shooter time to reach speed
-                if (shotsFired >= 2){
+                if (shotsFired >= 1){
                     if (timer.seconds() > 0.35) {
                         lift.setPosition(Servo.MAX_POSITION);
                         timer.reset();
                         state = State.FIRE_LIFT_UP;
                     }
                 } else {
-                    if (timer.seconds() > 0.55) {
+                    if (timer.seconds() > 0.75) {
                         lift.setPosition(Servo.MAX_POSITION);
                         timer.reset();
                         state = State.FIRE_LIFT_UP;
