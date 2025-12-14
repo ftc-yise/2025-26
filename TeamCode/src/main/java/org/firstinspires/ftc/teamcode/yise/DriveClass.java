@@ -112,7 +112,7 @@ public class DriveClass {
 
         //read the angle of the robot
         SparkFunOTOS.Pose2D pose = myOtos.getPosition();
-        double headingDeg = pose.h;// OTOS provides degrees (assumed)
+        double headingDeg = 0; //pose.h; //OTOS provides degrees (assumed)
         double headingRad = Math.toRadians(headingDeg);
 
         // read raw inputs
