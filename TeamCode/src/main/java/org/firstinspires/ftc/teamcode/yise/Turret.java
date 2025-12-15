@@ -7,87 +7,88 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.bylazar.configurables.annotations.Configurable;
 
-@Configurable // Exposes public static fields for tuning via your configuration library
+@Configurable
 public class Turret {
 
-    // --- PID TUNING CONSTANTS (Adjust these via your tuning interface!) ---
-    // Turret uses Limelight's 'ty' (vertical angle) as its input error,
-    // assuming a vertically-mounted camera where 'ty' measures horizontal deviation.
-    public static double kP = 0.05;      // Proportional gain (start tuning here)
-    public static double kI = 0.0;       // Integral gain (tune last, if needed)
-    public static double kD = 0.001;     // Derivative gain (for dampening)
-    public static double MAX_POWER = 0.45; // Max motor power
-    public static double MIN_POWER_FLOOR = 0.15; // Minimum power to overcome friction/inertia
-    public static double INTEGRAL_MAX = 5.0; // Anti-windup limit for integral term
-    public static double TARGET_TOLERANCE_DEG = 1.0; // Turret is "centered" when |ty| < tolerance
+    // --- PD TUNING CONSTANTS (These still need adjusted) ---
+    public static double kP = 0.05; // Proportional Gain: Scales the power output based on the current error.
+    public static double kD = 0.05; // Derivative Gain: Damps sudden changes in error, reducing overshoot/wobbling.
 
-    // --- PID STATE VARIABLES ---
-    private double integralSum = 0.0;
-    private double lastError = 0.0;
-    private long lastTime = System.currentTimeMillis();
+    public static double MAX_POWER = 0.7; // Hard limit on the maximum power the turret motor receives.
+    public static double MIN_POWER_FLOOR = 0.25; // Minimum required power to overcome static friction and start motor movement.
+    public static double TARGET_TOLERANCE_DEG = 0.8; // The error threshold (in degrees) at which the turret considers itself "on target" and stops.
 
-    // --- Existing Variables ---
-    LLResult result = null;
-    public double turretPower = 0.0;
-    // Note: myTy will now store the error, which is the Limelight's Ty value.
-    public double myTy = 0.0;
-    public DcMotor turret;
-    public Limelight3A limelight;
-    public Telemetry telemetry;
-    public enum turretAlliance{
-        RED,
-        BLUE,
-    }
-    public enum turretDirection {
-        LEFT,
-        RIGHT,
-        STOP,
-    }
-    public enum turretMode{
-        AUTO,
-        MANUAL,
-    }
-    public turretMode mode;
+    // --- FINAL SIGN CHECK MULTIPLIER ---
+    /**
+     * This multiplier cancels out any persistent sign mismatch between the motor's
+     * physical direction and the Limelight's coordinate system. This is what needs changed if the turret avoids the Apriltag
+     * Set to 1.0 or -1.0 in the dashboard to ensure the turret moves TOWARD the target.
+     */
+    public static double FINAL_DIRECTION_MULTIPLIER = 1.0;
 
+    // --- PD STATE VARIABLES ---
+    private double lastError = 0.0; // Stores the error from the previous loop iteration for calculating the derivative.
+    private long lastTime; // Stores the time of the previous loop iteration.
+
+    {
+        System.currentTimeMillis();
+    }
+
+    // --- CLASS VARIABLES ---
+    LLResult result = null; // Stores the latest data retrieved from the Limelight.
+    public double turretPower = 0.0; // The calculated power applied to the motor.
+    public double myTy = 0.0; // The horizontal error (ty) from the Limelight, after sign correction.
+    public DcMotor turret; // Hardware object for the turret motor.
+    public Limelight3A limelight; // Hardware object for the Limelight camera.
+    public Telemetry telemetry; // Telemetry object for displaying data on the driver station.
+
+    // Enumerations (Enums) to clearly define state and intent
+    public enum turretAlliance{RED, BLUE,}
+    public enum turretDirection {LEFT, RIGHT, STOP,}
+    public enum turretMode{AUTO, MANUAL,}
+    public turretMode mode; // Current operating mode of the turret.
+
+    /**
+     * Turret class constructor. Initializes all hardware and settings.
+     */
     public Turret (HardwareMap hardwareMap, turretAlliance alliance, Telemetry telem){
         telemetry = telem;
 
+        // Initialize motor hardware
         turret = hardwareMap.get(DcMotor.class, "turret");
-        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER); // Use direct power control
+
+        // DO NOT CHANGE THIS, instead change Final Direction Multiplier up above
         turret.setDirection(DcMotor.Direction.REVERSE);
 
+        // Initialize Limelight hardware
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.setPollRateHz(100);
+        limelight.setPollRateHz(100); // Set high poll rate for fast targeting
         limelight.start();
+
+        // Set the appropriate Limelight pipeline based on alliance color
         if (alliance == turretAlliance.RED) {
             limelight.pipelineSwitch(4);
         }else if (alliance== turretAlliance.BLUE) {
             limelight.pipelineSwitch(3);
         }
-        mode = turretMode.MANUAL;
+        mode = turretMode.MANUAL; // Start in manual mode
 
         lastTime = System.currentTimeMillis();
     }
 
-    public void changeMode() {
-        if (mode == turretMode.AUTO) {
-            mode = turretMode.MANUAL;
-            stop();
-            resetPID();
-        } else if (mode == turretMode.MANUAL) {
-            mode = turretMode.AUTO;
-        }
-    }
-
+    /**
+     * Controls the turret based on driver input (used in MANUAL mode).
+     */
     public void manualMode(turretDirection direction) {
         mode = turretMode.MANUAL;
 
         switch (direction) {
             case LEFT:
-                turret.setPower(-0.4);
+                turret.setPower(0.7);
                 break;
             case RIGHT:
-                turret.setPower(0.4);
+                turret.setPower(-0.7);
                 break;
             case STOP:
                 turret.setPower(0);
@@ -95,106 +96,95 @@ public class Turret {
         }
     }
 
-    // --- UPDATED AutoMode() using Limelight 'ty' ---
+    /**
+     * Runs the automatic targeting logic using PID control.
+     */
     public void autoMode(){
         mode = turretMode.AUTO;
 
-        result = limelight.getLatestResult();
+        result = limelight.getLatestResult(); // Get the newest vision data
 
-        // Check if the target is seen (isValid())
         if (result != null && result.isValid()) {
-            // Use 'ty' as the horizontal error input for the PID controller
-            double currentError_ty = result.getTy();
-            myTy = currentError_ty; // Update the public variable
+            double rawError_ty = result.getTy(); // Get raw horizontal error
 
-            turretPower = calculatePIDPower(currentError_ty);
+            // 1. Correct Limelight Sign: Multiplies by -1.0 to account for the 90° clockwise flip.
+            double currentError = rawError_ty * -1.0;
+            myTy = currentError; // Store the corrected error
 
-            // Add telemetry for tuning
-            telemetry.addData("Turret Mode", "AUTO (PID)");
-            telemetry.addData("Error (ty)", currentError_ty);
-            telemetry.addData("Turret Power", turretPower);
+            // 2. Calculate PD Power: Generates a signed power based on the error
+            turretPower = calculatePDPower(currentError);
+
+            // 3. Apply the final sign fix: Multiplies by 1.0 or -1.0 (from dashboard)
+            // to correct the final motor direction mismatch.
+            turretPower = turretPower * FINAL_DIRECTION_MULTIPLIER;
 
         } else {
+            // Target lost: stop the motor and reset PD state
             turretPower = 0;
-            resetPID();
+            resetPD();
             telemetry.addData("Turret Mode", "AUTO (Target Lost)");
-            telemetry.addData("Turret Power", 0);
         }
 
+        // Display telemetry and apply final calculated power
+        telemetry.addData("Mode", "AUTO (PD Control)");
+        telemetry.addData("Final Power", turretPower);
         turret.setPower(turretPower);
     }
 
+    /**
+     * Stops the turret motor immediately.
+     */
     public void stop(){
         turret.setPower(0);
     }
 
     /**
-     * Resets the integral and derivative components of the PID controller.
+     * Resets the state variables (lastError, lastTime) for the PD controller.
      */
-    private void resetPID() {
-        integralSum = 0.0;
+    private void resetPD() {
         lastError = 0.0;
         lastTime = System.currentTimeMillis();
     }
 
     /**
-     * Calculates the motor power using the PID algorithm.
-     * @param currentError The horizontal error (Limelight ty) in degrees.
-     * @return The calculated motor power (-MAX_POWER to MAX_POWER).
+     * Core PD calculation function.
      */
-    private double calculatePIDPower(double currentError) {
-        // If the error is within tolerance, stop and reset
+    private double calculatePDPower(double currentError) {
+        // 1. Check Tolerance: If error is small enough, stop and reset.
         if (Math.abs(currentError) < TARGET_TOLERANCE_DEG) {
-            resetPID();
+            resetPD();
             return 0.0;
         }
 
         long currentTime = System.currentTimeMillis();
-        // Time in seconds for accurate integral and derivative
-        double deltaTime = (currentTime - lastTime) / 1000.0;
+        double deltaTime = (currentTime - lastTime) / 1000.0; // Time in seconds
 
-        // 1. Proportional Term (P)
+        // Proportional Term: P = kP * error
         double proportional = kP * currentError;
 
-        // 2. Integral Term (I)
-        // Only integrate when somewhat close to prevent windup
-        if (Math.abs(currentError) < 10.0) {
-            integralSum += currentError * deltaTime;
-        } else {
-            integralSum = 0; // Clear integral if error is too large
+        // Derivative Term: D = kD * (change_in_error / delta_time)
+        double derivative = 0.0;
+        if (deltaTime != 0) {
+            derivative = kD * ((currentError - lastError) / deltaTime);
         }
 
-        // Anti-windup: Limit the integral sum
-        if (integralSum > INTEGRAL_MAX) {
-            integralSum = INTEGRAL_MAX;
-        } else if (integralSum < -INTEGRAL_MAX) {
-            integralSum = -INTEGRAL_MAX;
-        }
-        double integral = kI * integralSum;
+        // 3. Combine P and D
+        double outputPower = proportional + derivative;
 
-        // 3. Derivative Term (D)
-        // Prevent division by zero on the first call
-        double derivative = (deltaTime != 0) ? kD * ((currentError - lastError) / deltaTime) : 0.0;
-
-        // 4. Combine terms
-        double outputPower = proportional + integral + derivative;
-
-        // 5. Apply power floor (only applies power if movement is needed)
-        // This makes sure we overcome static friction
+        // 4. Min Power Floor (Friction Compensation)
+        // If the calculated power is low, boost it up to MIN_POWER_FLOOR magnitude
+        // to ensure the motor starts moving.
         if (outputPower > 0 && Math.abs(outputPower) < MIN_POWER_FLOOR) {
             outputPower = MIN_POWER_FLOOR;
         } else if (outputPower < 0 && Math.abs(outputPower) < MIN_POWER_FLOOR) {
             outputPower = -MIN_POWER_FLOOR;
         }
 
-        // 6. Clamp the power to the motor's absolute limits
-        if (outputPower > MAX_POWER) {
-            outputPower = MAX_POWER;
-        } else if (outputPower < -MAX_POWER) {
-            outputPower = -MAX_POWER;
-        }
+        // 5. Max Power Clamp: Ensure power never exceeds the defined maximum.
+        if (outputPower > MAX_POWER) outputPower = MAX_POWER;
+        else if (outputPower < -MAX_POWER) outputPower = -MAX_POWER;
 
-        // 7. Update state for the next loop
+        // 6. Save state for the next loop iteration
         lastError = currentError;
         lastTime = currentTime;
 
