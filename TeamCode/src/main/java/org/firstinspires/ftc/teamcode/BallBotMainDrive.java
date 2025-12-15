@@ -95,14 +95,14 @@ public class BallBotMainDrive extends LinearOpMode {
         while (opModeIsActive()) {
 
             if(firstRun){
-                shooter.setPower(.35);
+                shooter.setPower(.5);
                 firstRun = false;
             }
 
             //spindexer
             if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true); // Y = FULL
-                hood.setPower(-1);
+                hood.setPower(-.7);
                 autoShoot.startCycle();
             } else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false); // X = FULL
@@ -124,7 +124,7 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad2.dpad_up && !autoShoot.isBusy()){
                 hood.setPower(1);
             } else if (gamepad2.dpad_down && !autoShoot.isBusy()){
-                hood.setPower(-1);
+                hood.setPower(-.6);
             } else if (!autoShoot.isBusy()) {
                 hood.setPower(0);
             }
@@ -133,7 +133,7 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.handleSpeedToggle(gamepad1);
             drive.updateMotors(gamepad1);
 
-            //intake
+            //intake+
             if (gamepad1.right_trigger > 0.75) {
                 intake.setPower(.6);
                 walleft.setPower(1);
@@ -144,6 +144,11 @@ public class BallBotMainDrive extends LinearOpMode {
                 walleft.setPower(1);
                 wallright.setPower(1);
                 spin.setManual(.2);
+            }  else if (gamepad1.right_bumper) {
+                intake.setPower(-.6);
+                walleft.setPower(-1);
+                wallright.setPower(-1);
+                spin.setManual(0);
             } else {
                 intake.setPower(0);
                 walleft.setPower(0);

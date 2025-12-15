@@ -17,8 +17,8 @@ public class ShooterClass {
 
     // Power levels
     private final double POWER_STOP = 0.0;
-    private final double POWER_IDLE = 0.2;
-    private final double POWER_FULL = .95;
+    private final double POWER_IDLE = .5;
+    private final double POWER_FULL = .88;
     private final double POWER_LOW  = .72;
 
     // Telemetry storage

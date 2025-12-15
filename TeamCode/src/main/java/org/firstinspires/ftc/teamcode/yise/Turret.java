@@ -12,9 +12,9 @@ public class Turret {
 
     LLResult result = null;
     public static double myOffset = 0.2;
-    public static double mySlope = 0.4;
-    public static double floor = 0.3;
-    public static double ceiling = 0.7;
+    public static double mySlope = 0.25;
+    public static double floor = 0.2;
+    public static double ceiling = 0.45;
     public double turretPower = 0.0;
     public double myTy = 0.0;
     public DcMotor turret;
@@ -65,10 +65,10 @@ public class Turret {
 
         switch (direction) {
             case LEFT:
-                turret.setPower(-0.7);
+                turret.setPower(-0.4);
                 break;
             case RIGHT:
-                turret.setPower(0.7);
+                turret.setPower(0.4);
                 break;
             case STOP:
                 turret.setPower(0);

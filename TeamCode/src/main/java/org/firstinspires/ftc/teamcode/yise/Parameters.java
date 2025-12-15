@@ -15,7 +15,7 @@ public class Parameters extends LinearOpMode {
 
     public static Color allianceColor;
 
-    public static double WAIT = 0;
+    public static double WAIT;
     public boolean xReleased;
 
     @Override
@@ -37,7 +37,7 @@ public class Parameters extends LinearOpMode {
                 //WAIT until released
         }
 
-        while (!gamepad1.a && !gamepad1.b) {
+        while (!gamepad1.b) {
             telemetry.addLine("Wait Seconds: " + WAIT);
             telemetry.addLine("▢ = -1 \n X = +1 \n O = 0 \n Y to continue");
             telemetry.update();

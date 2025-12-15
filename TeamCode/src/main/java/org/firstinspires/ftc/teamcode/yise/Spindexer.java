@@ -53,7 +53,7 @@ public class Spindexer {
     private final double MAX_VOLTAGE = 3.3;
 
     // P-only control
-    private final double kP = 0.0058;
+    private final double kP = 0.0072;
 
     // Drift autocorrect timer
     private long lastCorrectionTime = 0;
@@ -107,9 +107,9 @@ public class Spindexer {
         sequenceActive = false;
     }
 
-    public void goToSilo1() { targetAngleDeg = 19; mode = Mode.SILO_1; }
-    public void goToSilo2() { targetAngleDeg = 140; mode = Mode.SILO_2; }
-    public void goToSilo3() { targetAngleDeg = 259; mode = Mode.SILO_3; }
+    public void goToSilo1() { targetAngleDeg = 17.5; mode = Mode.SILO_1; }
+    public void goToSilo2() { targetAngleDeg = 139; mode = Mode.SILO_2; }
+    public void goToSilo3() { targetAngleDeg = 257; mode = Mode.SILO_3; }
 
     public void setManual(double power) {
         manualPower = power;
