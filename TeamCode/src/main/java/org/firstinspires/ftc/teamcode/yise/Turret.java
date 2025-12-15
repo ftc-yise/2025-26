@@ -7,15 +7,29 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.bylazar.configurables.annotations.Configurable;
 
-@Configurable
+@Configurable // Exposes public static fields for tuning via your configuration library
 public class Turret {
 
+    // --- PID TUNING CONSTANTS (Adjust these via your tuning interface!) ---
+    // Turret uses Limelight's 'ty' (vertical angle) as its input error,
+    // assuming a vertically-mounted camera where 'ty' measures horizontal deviation.
+    public static double kP = 0.05;      // Proportional gain (start tuning here)
+    public static double kI = 0.0;       // Integral gain (tune last, if needed)
+    public static double kD = 0.001;     // Derivative gain (for dampening)
+    public static double MAX_POWER = 0.45; // Max motor power
+    public static double MIN_POWER_FLOOR = 0.15; // Minimum power to overcome friction/inertia
+    public static double INTEGRAL_MAX = 5.0; // Anti-windup limit for integral term
+    public static double TARGET_TOLERANCE_DEG = 1.0; // Turret is "centered" when |ty| < tolerance
+
+    // --- PID STATE VARIABLES ---
+    private double integralSum = 0.0;
+    private double lastError = 0.0;
+    private long lastTime = System.currentTimeMillis();
+
+    // --- Existing Variables ---
     LLResult result = null;
-    public static double myOffset = 0.2;
-    public static double mySlope = 0.25;
-    public static double floor = 0.2;
-    public static double ceiling = 0.45;
     public double turretPower = 0.0;
+    // Note: myTy will now store the error, which is the Limelight's Ty value.
     public double myTy = 0.0;
     public DcMotor turret;
     public Limelight3A limelight;
@@ -43,23 +57,28 @@ public class Turret {
         turret.setDirection(DcMotor.Direction.REVERSE);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.setPollRateHz(100); // This sets how often we ask Limelight for data (100 times per second)
-        limelight.start(); // This tells Limelight to start looking!
+        limelight.setPollRateHz(100);
+        limelight.start();
         if (alliance == turretAlliance.RED) {
-            limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
+            limelight.pipelineSwitch(4);
         }else if (alliance== turretAlliance.BLUE) {
-            limelight.pipelineSwitch(3); // Switch to pipeline number 3 which is ID:20
+            limelight.pipelineSwitch(3);
         }
         mode = turretMode.MANUAL;
+
+        lastTime = System.currentTimeMillis();
     }
 
     public void changeMode() {
         if (mode == turretMode.AUTO) {
             mode = turretMode.MANUAL;
+            stop();
+            resetPID();
         } else if (mode == turretMode.MANUAL) {
             mode = turretMode.AUTO;
         }
     }
+
     public void manualMode(turretDirection direction) {
         mode = turretMode.MANUAL;
 
@@ -75,46 +94,110 @@ public class Turret {
                 break;
         }
     }
+
+    // --- UPDATED AutoMode() using Limelight 'ty' ---
     public void autoMode(){
         mode = turretMode.AUTO;
 
         result = limelight.getLatestResult();
+
+        // Check if the target is seen (isValid())
         if (result != null && result.isValid()) {
-            myTy = result.getTy();
-            turretPower = getTurretPower(myTy, myOffset, mySlope);
-            //telemetry.addData("Ty=", myTy);
+            // Use 'ty' as the horizontal error input for the PID controller
+            double currentError_ty = result.getTy();
+            myTy = currentError_ty; // Update the public variable
+
+            turretPower = calculatePIDPower(currentError_ty);
+
+            // Add telemetry for tuning
+            telemetry.addData("Turret Mode", "AUTO (PID)");
+            telemetry.addData("Error (ty)", currentError_ty);
+            telemetry.addData("Turret Power", turretPower);
+
         } else {
             turretPower = 0;
+            resetPID();
+            telemetry.addData("Turret Mode", "AUTO (Target Lost)");
+            telemetry.addData("Turret Power", 0);
         }
-        //telemetry.addData("Power=", turretPower);
-        //telemetry.update();
+
         turret.setPower(turretPower);
     }
+
     public void stop(){
         turret.setPower(0);
     }
-    private double getTurretPower (double ty, double myOffset, double mySlope) {
-        double myPower = 0.0;
 
-        if (ty < 0) {
-            myPower = -.2*(ty * mySlope + myOffset);
-            if (myPower > 0.7) {
-                myPower = ceiling;
-            } else if (myPower < 0.35) {
-                myPower = floor;
-            }
-            return myPower;
-        } else if (ty > 0) {
-            myPower = -.2*(ty * mySlope - myOffset);
-            if (myPower < -0.7) {
-                myPower = -1 * ceiling;
-            } else if (myPower > -0.35) {
-                myPower = -1 * floor;
-            }
-            return myPower;
+    /**
+     * Resets the integral and derivative components of the PID controller.
+     */
+    private void resetPID() {
+        integralSum = 0.0;
+        lastError = 0.0;
+        lastTime = System.currentTimeMillis();
+    }
+
+    /**
+     * Calculates the motor power using the PID algorithm.
+     * @param currentError The horizontal error (Limelight ty) in degrees.
+     * @return The calculated motor power (-MAX_POWER to MAX_POWER).
+     */
+    private double calculatePIDPower(double currentError) {
+        // If the error is within tolerance, stop and reset
+        if (Math.abs(currentError) < TARGET_TOLERANCE_DEG) {
+            resetPID();
+            return 0.0;
         }
-        else {
-            return myPower;
+
+        long currentTime = System.currentTimeMillis();
+        // Time in seconds for accurate integral and derivative
+        double deltaTime = (currentTime - lastTime) / 1000.0;
+
+        // 1. Proportional Term (P)
+        double proportional = kP * currentError;
+
+        // 2. Integral Term (I)
+        // Only integrate when somewhat close to prevent windup
+        if (Math.abs(currentError) < 10.0) {
+            integralSum += currentError * deltaTime;
+        } else {
+            integralSum = 0; // Clear integral if error is too large
         }
+
+        // Anti-windup: Limit the integral sum
+        if (integralSum > INTEGRAL_MAX) {
+            integralSum = INTEGRAL_MAX;
+        } else if (integralSum < -INTEGRAL_MAX) {
+            integralSum = -INTEGRAL_MAX;
+        }
+        double integral = kI * integralSum;
+
+        // 3. Derivative Term (D)
+        // Prevent division by zero on the first call
+        double derivative = (deltaTime != 0) ? kD * ((currentError - lastError) / deltaTime) : 0.0;
+
+        // 4. Combine terms
+        double outputPower = proportional + integral + derivative;
+
+        // 5. Apply power floor (only applies power if movement is needed)
+        // This makes sure we overcome static friction
+        if (outputPower > 0 && Math.abs(outputPower) < MIN_POWER_FLOOR) {
+            outputPower = MIN_POWER_FLOOR;
+        } else if (outputPower < 0 && Math.abs(outputPower) < MIN_POWER_FLOOR) {
+            outputPower = -MIN_POWER_FLOOR;
+        }
+
+        // 6. Clamp the power to the motor's absolute limits
+        if (outputPower > MAX_POWER) {
+            outputPower = MAX_POWER;
+        } else if (outputPower < -MAX_POWER) {
+            outputPower = -MAX_POWER;
+        }
+
+        // 7. Update state for the next loop
+        lastError = currentError;
+        lastTime = currentTime;
+
+        return outputPower;
     }
 }
