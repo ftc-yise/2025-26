@@ -5,47 +5,130 @@ import org.firstinspires.ftc.teamcode.yise.Turret.turretMode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
+import com.qualcomm.robotcore.hardware.DcMotor;
 
 @TeleOp(name="turretTest", group="Linear Opmode")
 public class turretTest extends LinearOpMode {
-    private ElapsedTime runtime = new ElapsedTime();
-    private Boolean rightBumperPressed = false;
+    private ElapsedTime homingTimer = new ElapsedTime();
+    private ElapsedTime snapTimer = new ElapsedTime();
+
+    private boolean modeTogglePressed = false;
+
+    private enum SnapState { INACTIVE, SNAPPING_LEFT, PUSHING_LEFT, SNAPPING_RIGHT, PUSHING_RIGHT, GOING_HOME, HOMING_ROUTINE }
+    private SnapState currentSnapState = SnapState.INACTIVE;
+
+    private static final int LEFT_LIMIT = -1370;
+    private static final int CENTER_TARGET = -685;
+    private static final int TOLERANCE = 10;
 
     @Override
     public void runOpMode() {
+        Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
         waitForStart();
-        runtime.reset();
 
-        Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
-        // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
 
-            telemetry.addData("mode: ", turret.mode);
-            telemetry.update();
-
-            if (turret.mode == turretMode.AUTO) {
-                if (gamepad1.right_bumper && !rightBumperPressed) {
-                    rightBumperPressed = true;
-                    turret.manualMode(Turret.turretDirection.STOP);
-                } else {
-                    turret.autoMode();
-               }
-            } else if (turret.mode == turretMode.MANUAL) {
-                if (gamepad1.right_bumper && !rightBumperPressed) {
-                    rightBumperPressed = true;
-                    turret.autoMode();
-                } else if (gamepad1.dpad_left) {
-                   turret.manualMode(Turret.turretDirection.LEFT);
-               } else if (gamepad1.dpad_right) {
-                   turret.manualMode(Turret.turretDirection.RIGHT);
-               } else {
-                   turret.stop();
-               }
-           }
-            if (!gamepad1.right_bumper && rightBumperPressed == true) {
-                rightBumperPressed = false;
+            // --- 1. SYSTEM CONTROLS ---
+            if (gamepad1.options && !modeTogglePressed) {
+                turret.changeMode();
+                currentSnapState = SnapState.INACTIVE;
+                modeTogglePressed = true;
             }
+            if (!gamepad1.options) modeTogglePressed = false;
+
+            if (gamepad1.share) {
+                currentSnapState = SnapState.HOMING_ROUTINE;
+                homingTimer.reset();
+            }
+
+            // --- INPUT DETECTION ---
+            if (turret.mode == turretMode.MANUAL) {
+                double triggerPower = gamepad1.right_trigger - gamepad1.left_trigger;
+
+                if (Math.abs(triggerPower) > 0.05) {
+                    currentSnapState = SnapState.INACTIVE;
+                    turret.manualControl(triggerPower);
+                }
+                else if (gamepad1.left_bumper && gamepad1.right_bumper) {
+                    currentSnapState = SnapState.GOING_HOME;
+                }
+                else if (gamepad1.right_bumper && currentSnapState != SnapState.SNAPPING_RIGHT && currentSnapState != SnapState.PUSHING_RIGHT) {
+                    currentSnapState = SnapState.SNAPPING_RIGHT;
+                }
+                else if (gamepad1.left_bumper && currentSnapState != SnapState.SNAPPING_LEFT && currentSnapState != SnapState.PUSHING_LEFT) {
+                    currentSnapState = SnapState.SNAPPING_LEFT;
+                }
+            }
+
+            // --- 3. STATE MACHINE ---
+            if (turret.mode == turretMode.AUTO) {
+                turret.autoMode();
+            }
+            else if (currentSnapState == SnapState.HOMING_ROUTINE) {
+                if (gamepad1.share) {
+                    if (!turret.limit.getState()) {
+                        turret.turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                        turret.turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                        turret.manualControl(0.4);
+                    } else {
+                        double curvePower = 0.9 - (homingTimer.seconds() * 0.33);
+                        turret.manualControl(Range.clip(curvePower, 0.4, 0.9));
+                    }
+                } else {
+                    currentSnapState = SnapState.INACTIVE;
+                    turret.stop();
+                }
+            }
+            else if (currentSnapState == SnapState.GOING_HOME) {
+                int currentPos = turret.turret.getCurrentPosition();
+                int error = CENTER_TARGET - currentPos;
+                if (Math.abs(error) > TOLERANCE) {
+                    double homePower = (error > 0) ? 1.0 : -1.0;
+                    if (Math.abs(error) < 200) homePower *= 0.4;
+                    turret.manualControl(homePower);
+                } else {
+                    turret.stop();
+                    currentSnapState = SnapState.INACTIVE;
+                }
+            }
+            // SNAP RIGHT
+            else if (currentSnapState == SnapState.SNAPPING_RIGHT) {
+                turret.manualControl(1.0);
+                if (!turret.limit.getState()) {
+                    snapTimer.reset();
+                    currentSnapState = SnapState.PUSHING_RIGHT;
+                }
+            }
+            else if (currentSnapState == SnapState.PUSHING_RIGHT) {
+                if (snapTimer.seconds() < 1.0) turret.manualControl(0.5);
+                else { turret.stop(); currentSnapState = SnapState.INACTIVE; }
+            }
+            // SNAP LEFT
+            else if (currentSnapState == SnapState.SNAPPING_LEFT) {
+                int currentPos = turret.turret.getCurrentPosition();
+                turret.manualControl(-1.0);
+                if (currentPos <= LEFT_LIMIT) {
+                    snapTimer.reset();
+                    currentSnapState = SnapState.PUSHING_LEFT;
+                }
+            }
+            else if (currentSnapState == SnapState.PUSHING_LEFT) {
+                if (snapTimer.seconds() < 1.0) turret.manualControl(-0.5);
+                else { turret.stop(); currentSnapState = SnapState.INACTIVE; }
+            }
+            else if (currentSnapState == SnapState.INACTIVE && Math.abs(gamepad1.right_trigger - gamepad1.left_trigger) <= 0.05) {
+                turret.stop();
+            }
+
+            // --- 4. TELEMETRY ---
+            telemetry.addLine("      TURRET:");
+            telemetry.addLine("---------------");
+            telemetry.addData("ENC", turret.turret.getCurrentPosition());
+            telemetry.addData("STATE", currentSnapState);
+            telemetry.addData("MODE", turret.mode);
+            telemetry.update();
         }
     }
 }

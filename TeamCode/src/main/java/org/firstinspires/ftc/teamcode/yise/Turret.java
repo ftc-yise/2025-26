@@ -4,117 +4,186 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
+import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.bylazar.configurables.annotations.Configurable;
 
 @Configurable
 public class Turret {
+    public int homePos = 295;       // Right side home
+    public int farLimit = -1075;    // Left side home
+    public int centerPos = (homePos + farLimit) / 2; // Approx. calculated center
 
+    // --- PID CONTROL CONSTANTS  ---
+    public static double kP = 0.05;
+    public static double kD = 0.01;
+    public static double kI = 0.0;
+    public static double AUTO_MAX_POWER = 0.7;
+    public static double AUTO_MIN_POWER_FLOOR = 0.15;
+    public static double TARGET_TOLERANCE_DEG = 1.0;
+    public static double FINAL_DIRECTION_MULTIPLIER = 1.0;
+
+    // --- ANALOG MANUAL CONTROL CONSTANTS  ---
+    public static double MAX_MANUAL_POWER = 1.0;
+    public static double ANALOG_POWER_CURVE_EXPONENT = 2.0;
+    public static double MIN_ANALOG_POWER_FLOOR = 0.1;
+
+    // --- PID STATE VARIABLES ---
+    private double lastError = 0.0;
+    private long lastTime = System.currentTimeMillis();
+    private double integralSum = 0.0;
+
+    // --- CLASS VARIABLES ---
     LLResult result = null;
-    public static double myOffset = 0.2;
-    public static double mySlope = 0.25;
-    public static double floor = 0.2;
-    public static double ceiling = 0.45;
     public double turretPower = 0.0;
     public double myTy = 0.0;
     public DcMotor turret;
     public Limelight3A limelight;
+    public DigitalChannel limit; // Digital device for limit switch instead of push sensor because I get more advanced control
     public Telemetry telemetry;
-    public enum turretAlliance{
-        RED,
-        BLUE,
-    }
-    public enum turretDirection {
-        LEFT,
-        RIGHT,
-        STOP,
-    }
-    public enum turretMode{
-        AUTO,
-        MANUAL,
-    }
+
+    public enum turretAlliance{ RED, BLUE }
+    public enum turretDirection { LEFT, RIGHT, STOP }
+    public enum turretMode{ AUTO, MANUAL }
     public turretMode mode;
 
     public Turret (HardwareMap hardwareMap, turretAlliance alliance, Telemetry telem){
         telemetry = telem;
 
         turret = hardwareMap.get(DcMotor.class, "turret");
+
+        // RESET ENCODER but stay in WITHOUT_ENCODER mode
+        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turret.setDirection(DcMotor.Direction.REVERSE);
 
+        // Limit Switch Setup
+        limit = hardwareMap.get(DigitalChannel.class, "limit");
+        limit.setMode(DigitalChannel.Mode.INPUT);
+
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.setPollRateHz(100); // This sets how often we ask Limelight for data (100 times per second)
-        limelight.start(); // This tells Limelight to start looking!
+        limelight.setPollRateHz(100);
+        limelight.start();
         if (alliance == turretAlliance.RED) {
-            limelight.pipelineSwitch(4); // Switch to pipeline number 4 which is ID:24
-        }else if (alliance== turretAlliance.BLUE) {
-            limelight.pipelineSwitch(3); // Switch to pipeline number 3 which is ID:20
+            limelight.pipelineSwitch(4);
+        } else if (alliance == turretAlliance.BLUE) {
+            limelight.pipelineSwitch(3);
         }
         mode = turretMode.MANUAL;
+        lastTime = System.currentTimeMillis();
+    }
+
+    // Limit switch safety
+    private double applySafety(double power) {
+        // Digital sensors are TRUE when open, FALSE when pressed
+        boolean isPressed = !limit.getState();
+
+        if (isPressed) {
+            int pos = turret.getCurrentPosition();
+            if (pos > 10 && power > 0) return 0;
+            if (pos < -10 && power < 0) return 0;
+        }
+        return Range.clip(power, -1.0, 1.0);
     }
 
     public void changeMode() {
         if (mode == turretMode.AUTO) {
             mode = turretMode.MANUAL;
+            stop();
+            resetPD();
         } else if (mode == turretMode.MANUAL) {
             mode = turretMode.AUTO;
         }
     }
+
     public void manualMode(turretDirection direction) {
         mode = turretMode.MANUAL;
-
+        double p = 0;
         switch (direction) {
-            case LEFT:
-                turret.setPower(-0.4);
-                break;
-            case RIGHT:
-                turret.setPower(0.4);
-                break;
-            case STOP:
-                turret.setPower(0);
-                break;
+            case LEFT:  p = -0.4; break;
+            case RIGHT: p = 0.4;  break;
+            case STOP:  p = 0;    break;
         }
+        turret.setPower(applySafety(p));
     }
-    public void autoMode(){
-        mode = turretMode.AUTO;
 
-        result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            myTy = result.getTy();
-            turretPower = getTurretPower(myTy, myOffset, mySlope);
-            //telemetry.addData("Ty=", myTy);
-        } else {
-            turretPower = 0;
+    public void manualControl(double power) {
+        mode = turretMode.MANUAL;
+
+        // --- POWER CURVE MATH STUFF ---
+        double curbedPower = Math.signum(power) * Math.pow(Math.abs(power), ANALOG_POWER_CURVE_EXPONENT);
+        double finalPower = curbedPower * MAX_MANUAL_POWER;
+
+        if (Math.abs(finalPower) > 0.0 && Math.abs(finalPower) < MIN_ANALOG_POWER_FLOOR) {
+            finalPower = Math.signum(finalPower) * MIN_ANALOG_POWER_FLOOR;
         }
-        //telemetry.addData("Power=", turretPower);
-        //telemetry.update();
+
+        turretPower = applySafety(finalPower);
         turret.setPower(turretPower);
     }
+
+    public void autoMode(){
+        mode = turretMode.AUTO;
+        result = limelight.getLatestResult();
+
+        if (result != null && result.isValid()) {
+            double rawError_ty = result.getTy();
+            double currentError = rawError_ty * -1.0;
+            myTy = currentError;
+
+            // --- PID MATH ---
+            double pdPower = calculatePDPower(currentError) * FINAL_DIRECTION_MULTIPLIER;
+            turretPower = applySafety(pdPower);
+
+        } else {
+            turretPower = 0;
+            resetPD();
+        }
+        turret.setPower(turretPower);
+    }
+
     public void stop(){
         turret.setPower(0);
     }
-    private double getTurretPower (double ty, double myOffset, double mySlope) {
-        double myPower = 0.0;
+    public void setHome() {
+        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+    private void resetPD() {
+        lastError = 0.0;
+        lastTime = System.currentTimeMillis();
+    }
 
-        if (ty < 0) {
-            myPower = -.2*(ty * mySlope + myOffset);
-            if (myPower > 0.7) {
-                myPower = ceiling;
-            } else if (myPower < 0.35) {
-                myPower = floor;
-            }
-            return myPower;
-        } else if (ty > 0) {
-            myPower = -.2*(ty * mySlope - myOffset);
-            if (myPower < -0.7) {
-                myPower = -1 * ceiling;
-            } else if (myPower > -0.35) {
-                myPower = -1 * floor;
-            }
-            return myPower;
+    private double calculatePDPower(double currentError) {
+        if (Math.abs(currentError) < TARGET_TOLERANCE_DEG) {
+            resetPD();
+            return 0.0;
         }
-        else {
-            return myPower;
+
+        long currentTime = System.currentTimeMillis();
+        double deltaTime = (currentTime - lastTime) / 1000.0;
+
+        double proportional = kP * currentError;
+        double derivative = 0.0;
+        if (deltaTime != 0) {
+            derivative = kD * ((currentError - lastError) / deltaTime);
         }
+
+        double outputPower = proportional + derivative;
+
+        if (outputPower > 0 && Math.abs(outputPower) < AUTO_MIN_POWER_FLOOR) {
+            outputPower = AUTO_MIN_POWER_FLOOR;
+        } else if (outputPower < 0 && Math.abs(outputPower) < AUTO_MIN_POWER_FLOOR) {
+            outputPower = -AUTO_MIN_POWER_FLOOR;
+        }
+
+        if (outputPower > AUTO_MAX_POWER) outputPower = AUTO_MAX_POWER;
+        else if (outputPower < -AUTO_MAX_POWER) outputPower = -AUTO_MAX_POWER;
+
+        lastError = currentError;
+        lastTime = currentTime;
+
+        return outputPower;
     }
 }
