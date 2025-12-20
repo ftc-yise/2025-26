@@ -223,31 +223,79 @@ public class BallBotMainDrive extends LinearOpMode {
                 turret.stop();
             }
 
+            // START+BACK -> start logging
+            if (gamepad1.start && gamepad1.back && logWriter != null) {
+                try {
+                    File dir = new File("/sdcard/FIRST");
+                    if (!dir.exists()) dir.mkdirs();
+                    logFilePath = "/sdcard/FIRST/field_only_log_" + System.currentTimeMillis() + ".csv";
+                    logWriter = new PrintWriter(new FileWriter(new File(logFilePath), true));
+                    logWriter.println("time_s,input_x,input_y,input_turn,trans_x,trans_y,rotation_cmd,lf,rf,lb,rb,pose_x,pose_y,pose_h,total_power");
+                    logWriter.flush();
+                    telemetry.addData("Log", "started: " + logFilePath);
+                    telemetry.update();
+                } catch (IOException e) {
+                    telemetry.addData("Log Error", e.getMessage());
+                    telemetry.update();
+                }
+            }
 
-            // --- LOGGING & TELEMETRY UPDATES ---
-            spin.update();
+            //telemetry getter
             DriveClass.DriveTelemetry d = drive.getDriveTelemetry();
+
+            // logging
+            if (logWriter != null && logTimer.seconds() >= logInterval) {
+                double now = runtime.seconds();
+                double totalPower = Math.abs(d.lf) + Math.abs(d.rf) + Math.abs(d.lb) + Math.abs(d.rb);
+                logWriter.printf("%.3f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f%n",
+                        now, d.rawX, d.rawY, d.rawTurn, d.tx_field, d.ty_field, d.rotationCmd,
+                        d.lf, d.rf, d.lb, d.rb, d.pose.x, d.pose.y, d.pose.h, totalPower);
+                logWriter.flush();
+                logTimer.reset();
+            }
+
             ShooterClass.ShooterTelemetry shoot = shooter.getTelemetry();
+            spin.update();
             Spindexer.TelemetryPacket spina = spin.getTelemetry();
 
-            telemetry.addLine("=== TURRET: ===");
-            telemetry.addData("ENC:", turret.turret.getCurrentPosition());
-            telemetry.addData("STATE:", currentSnapState);
-            telemetry.addData("MODE:", turret.mode);
+            // telemetry
+            telemetry.addLine("=== SHOOTER ===");
+            telemetry.addData("Mode", shoot.mode);
+            telemetry.addData("Power", "%.2f", shooter.getPower());
+            telemetry.addData("Velocity", "%.1f", shoot.velocity);
 
-            telemetry.addLine("=== SHOOTER: ===");
-            telemetry.addData("POWER:", "%.2f", shooter.getPower());
-            telemetry.addData("VELOCITY:", "%.1f", shoot.velocity);
+            telemetry.addLine("=== FIELD DRIVE ===");
+            telemetry.addData("Speed Mode", d.currentSpeed);
+            telemetry.addData("Heading (deg)", "%.2f", d.headingDeg);
+            telemetry.addData("Inputs (raw)", "x:%.2f y:%.2f t:%.2f", d.rawX, d.rawY, d.rawTurn);
+            telemetry.addData("FieldCmd (tx,ty)", "%.3f, %.3f", d.tx_field, d.ty_field);
+            telemetry.addData("RobotCmd (rx,ry)", "%.3f, %.3f", d.robotX, d.robotY);
+            telemetry.addData("Motor LF/RF/LB/RB", "%.3f / %.3f / %.3f / %.3f", d.lf, d.rf, d.lb, d.rb);
+            telemetry.addData("Pose (x,y,h)", "%.2f, %.2f, %.2f", d.pose.x, d.pose.y, d.pose.h);
+            telemetry.addData("Logging", logWriter != null ? ("ON: " + logFilePath) : "OFF");
 
-            telemetry.addLine("=== CHASSIS ===");
-            telemetry.addData("HEADING (deg):", "%.2f", d.headingDeg);
-            telemetry.addData("POSE (x,y,h):", "%.2f, %.2f, %.2f", d.pose.x, d.pose.y, d.pose.h);
+            telemetry.addLine("=== SPINDEXER ===");
+            telemetry.addData("Mode", spina.mode);
+            telemetry.addData("Voltage", "%.3f", spina.voltage);
+            telemetry.addData("Angle", "%.1f°", spina.currentAngle);
+            telemetry.addData("Target", "%.1f°", spina.targetAngle);
+            telemetry.addData("Error", "%.1f°", spina.angleError);
+            telemetry.addData("Power", "%.2f", spina.appliedPower);
 
+            telemetry.addLine("=== TURRET ===");
+            telemetry.addData("mode: ", turret.mode);
+            telemetry.addData("power: ",turret.turretPower);
+            telemetry.addData("ty: ", turret.myTy);
             telemetry.update();
+        } // end while opModeIsActive
 
-        } // end while
-
+        // cleanup
         drive.stopAllMotors();
-        if (logWriter != null) { logWriter.flush(); logWriter.close(); }
+        if (logWriter != null) {
+            logWriter.flush();
+            logWriter.close();
+            telemetry.addData("Log Saved", logFilePath);
+            telemetry.update();
+        }
     }
 }
