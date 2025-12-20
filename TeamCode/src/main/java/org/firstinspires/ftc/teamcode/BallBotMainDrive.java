@@ -289,7 +289,6 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.update();
         } // end while opModeIsActive
 
-        // cleanup
         drive.stopAllMotors();
         if (logWriter != null) {
             logWriter.flush();
