@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.yise.Parameters;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -43,6 +44,10 @@ public class BallBotMainDrive extends LinearOpMode {
     private Servo footL = null;
     private Servo footR = null;
 
+    private ColorSensor middle = null;
+    private ColorSensor backLeft = null;
+    private ColorSensor backRight = null;
+
     private final ElapsedTime runtime = new ElapsedTime();
     private final ElapsedTime logTimer = new ElapsedTime();
     private PrintWriter logWriter = null;
@@ -74,6 +79,10 @@ public class BallBotMainDrive extends LinearOpMode {
         wallright.setDirection(CRServo.Direction.REVERSE);
         intake = hardwareMap.get(DcMotor.class, "intake");
 
+        middle = hardwareMap.get(ColorSensor.class, "middlecolorsensor");
+        backLeft = hardwareMap.get(ColorSensor.class, "BLcolorsensor");
+        backRight = hardwareMap.get(ColorSensor.class, "BRcolorsensor");
+
         hood.setPower(0);
         spin.goToSilo1();
 
@@ -89,7 +98,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
             // --- DRIVE & SPEED TOGGLE ---
             drive.handleSpeedToggle(gamepad1);
-            drive.updateMotors(gamepad1);
+            drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
             if (gamepad2.a && !autoShoot.isBusy()) {
@@ -127,12 +136,24 @@ public class BallBotMainDrive extends LinearOpMode {
             }
 
             // --- HOOD & FOOT ---
-            if (gamepad1.dpad_down) { footL.setPosition(-1); footR.setPosition(1); }
-            else if (gamepad1.dpad_up) { footL.setPosition(1); footR.setPosition(-1); }
+            if (gamepad1.dpad_down) {
+                footL.setPosition(-1);
+                footR.setPosition(1);
+            }
+            else if (gamepad1.dpad_up) {
+                footL.setPosition(1);
+                footR.setPosition(-1);
+            }
 
-            if (gamepad2.dpad_up && !autoShoot.isBusy()) hood.setPower(1);
-            else if (gamepad2.dpad_down && !autoShoot.isBusy()) hood.setPower(-.6);
-            else if (!autoShoot.isBusy()) hood.setPower(0);
+            if (gamepad2.dpad_up && !autoShoot.isBusy()) {
+                hood.setPower(1);
+            }
+            else if (gamepad2.dpad_down && !autoShoot.isBusy()) {
+                hood.setPower(-.6);
+            }
+            else if (!autoShoot.isBusy()) {
+                hood.setPower(0);
+            }
 
 
             // =========================================================
@@ -145,7 +166,9 @@ public class BallBotMainDrive extends LinearOpMode {
                 currentSnapState = SnapState.INACTIVE;
                 modeTogglePressed = true;
             }
-            if (!gamepad2.options) modeTogglePressed = false;
+            if (!gamepad2.options) {
+                modeTogglePressed = false;
+            }
 
             if (gamepad2.share) {
                 currentSnapState = SnapState.HOMING_ROUTINE;
@@ -254,15 +277,16 @@ public class BallBotMainDrive extends LinearOpMode {
                 logTimer.reset();
             }
 
-            ShooterClass.ShooterTelemetry shoot = shooter.getTelemetry();
+            ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
             spin.update();
             Spindexer.TelemetryPacket spina = spin.getTelemetry();
 
             // telemetry
             telemetry.addLine("=== SHOOTER ===");
-            telemetry.addData("Mode", shoot.mode);
-            telemetry.addData("Power", "%.2f", shooter.getPower());
-            telemetry.addData("Velocity", "%.1f", shoot.velocity);
+            telemetry.addData("Mode", s.mode);
+            telemetry.addData("target", "%.2f", s.targetRPM);
+            telemetry.addData("current vel", "%.1f", s.currentRPM);
+            telemetry.addData("current err", "%.1f", s.errorRPM);
 
             telemetry.addLine("=== FIELD DRIVE ===");
             telemetry.addData("Speed Mode", d.currentSpeed);
@@ -286,6 +310,20 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("mode: ", turret.mode);
             telemetry.addData("power: ",turret.turretPower);
             telemetry.addData("ty: ", turret.myTy);
+
+            telemetry.addLine("=== COLOR SENSOR ===");
+            telemetry.addLine("=== MIDDLE ===");
+            telemetry.addData("color middle Blue", middle.blue());
+            telemetry.addData("color middle Red",  middle.red());
+            telemetry.addData("color middle Green", middle.green());
+            telemetry.addLine("=== BACK LEFT ===");
+            telemetry.addData("color Back Left Blue", backLeft.blue());
+            telemetry.addData("color Back Left Red",  backLeft.red());
+            telemetry.addData("color Back Left Green", backLeft.green());
+            telemetry.addLine("=== BACK RIGHT ===");
+            telemetry.addData("color Back Right Blue", backRight.blue());
+            telemetry.addData("color Back Right Red", backRight.red());
+            telemetry.addData("color Back Right Blue",backRight.green());
             telemetry.update();
         } // end while opModeIsActive
 
