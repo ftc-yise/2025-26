@@ -17,11 +17,11 @@ public class ExampleFunctionTest {
     }
 
     // this is the function we're testing
-    public static double getTurretPower (double ty, double slope, double offset) {
-        if (ty < 0) {
-            return (((ty * slope) - offset) * -1);
-        } else if (ty > 0) {
-            return (((ty * slope) + offset) * -1);
+    public static double getTurretPower (double tx, double slope, double offset) {
+        if (tx < 0) {
+            return .1*(tx * slope + offset);
+        } else if (tx > 0) {
+            return .1*(tx * slope - offset);
         } else {
             return 0;
         }
