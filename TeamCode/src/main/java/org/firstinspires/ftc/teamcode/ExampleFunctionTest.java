@@ -6,7 +6,7 @@ public class ExampleFunctionTest {
     // right-click in this window and choose "Run 'ExampleFunctionTest.main()' with Coverage"
     public static void main(String[] args) {
         double mySlope = 0.44;
-        double myOffset = 0.2;
+        double myOffset = 1;
         double tx = 0.0;
 
         double myPower = getTurretPower(tx, mySlope, myOffset);
@@ -17,11 +17,11 @@ public class ExampleFunctionTest {
     }
 
     // this is the function we're testing
-    public static double getTurretPower (double tx, double slope, double offset) {
+    public static double getTurretPower (double tx, double mySlope, double myOffset) {
         if (tx < 0) {
-            return .1*(tx * slope + offset);
+            return .1*(tx * mySlope + myOffset);
         } else if (tx > 0) {
-            return .1*(tx * slope - offset);
+            return .1*(tx * mySlope - myOffset);
         } else {
             return 0;
         }

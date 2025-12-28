@@ -285,7 +285,7 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addLine("=== TURRET ===");
             telemetry.addData("mode: ", turret.mode);
             telemetry.addData("power: ",turret.turretPower);
-            telemetry.addData("ty: ", turret.myTy);
+            telemetry.addData("ty: ", turret.getTx());
             telemetry.update();
         } // end while opModeIsActive
 

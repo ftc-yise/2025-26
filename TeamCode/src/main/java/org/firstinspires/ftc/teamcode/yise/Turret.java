@@ -11,6 +11,9 @@ import com.bylazar.configurables.annotations.Configurable;
 
 @Configurable
 public class Turret {
+    double mySlope = 0.15;
+    double myOffset = 0.25;
+    double tx = 0.0;
     public int homePos = 295;       // Right side home
     public int farLimit = -1075;    // Left side home
     public int centerPos = (homePos + farLimit) / 2; // Approx. calculated center
@@ -37,7 +40,7 @@ public class Turret {
     // --- CLASS VARIABLES ---
     LLResult result = null;
     public double turretPower = 0.0;
-    public double myTy = 0.0;
+    public double myTx = 0.0;
     public DcMotor turret;
     public Limelight3A limelight;
     public DigitalChannel limit; // Digital device for limit switch instead of push sensor because I get more advanced control
@@ -125,26 +128,45 @@ public class Turret {
 
     public void autoMode(){
         mode = turretMode.AUTO;
+
         result = limelight.getLatestResult();
-
         if (result != null && result.isValid()) {
-            double rawError_ty = result.getTy();
-            double currentError = rawError_ty * -1.0;
-            myTy = currentError;
-
-            // --- PID MATH ---
-            double pdPower = calculatePDPower(currentError) * FINAL_DIRECTION_MULTIPLIER;
-            turretPower = applySafety(pdPower);
-
+            myTx = result.getTx();
+            turretPower = getTurretPower(myTx, myOffset, mySlope);
+            //telemetry.addData("Ty=", myTy);
         } else {
             turretPower = 0;
-            resetPD();
         }
-        turret.setPower(turretPower);
+        //telemetry.addData("Power=", turretPower);
+        //telemetry.update();
+        turret.setPower(-turretPower);
     }
-
     public void stop(){
         turret.setPower(0);
+    }
+    private double getTurretPower (double tx, double myOffset, double mySlope) {
+        double myPower = 0.0;
+
+        if (tx < 0) {
+            myPower = -.2*(tx * mySlope + myOffset);
+            if (myPower > 0.7) {
+                myPower = AUTO_MAX_POWER;
+            } else if (myPower < 0.35) {
+                myPower = AUTO_MIN_POWER_FLOOR;
+            }
+            return myPower;
+        } else if (tx > 0) {
+            myPower = -.2*(tx * mySlope - myOffset);
+            if (myPower < -0.7) {
+                myPower = -1 * AUTO_MAX_POWER;
+            } else if (myPower > -0.35) {
+                myPower = -1 * AUTO_MIN_POWER_FLOOR;
+            }
+            return myPower;
+        }
+        else {
+            return myPower;
+        }
     }
     public void setHome() {
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -185,5 +207,10 @@ public class Turret {
         lastTime = currentTime;
 
         return outputPower;
+    }
+
+    public double getTx(){
+        myTx = tx;
+        return myTx;
     }
 }
