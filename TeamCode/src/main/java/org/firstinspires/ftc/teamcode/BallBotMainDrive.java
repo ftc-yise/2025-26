@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import org.firstinspires.ftc.teamcode.yise.DriveClass;
+import org.firstinspires.ftc.teamcode.yise.Hood;
 import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
@@ -38,7 +39,6 @@ public class BallBotMainDrive extends LinearOpMode {
     // ------------------------------
 
     private DcMotor intake = null;
-    private CRServo hood = null;
     private CRServo walleft = null;
     private CRServo wallright = null;
     private Servo footL = null;
@@ -62,6 +62,7 @@ public class BallBotMainDrive extends LinearOpMode {
         DriveClass drive = new DriveClass(hardwareMap);
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
+        Hood hood = new Hood(hardwareMap);
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
@@ -71,7 +72,6 @@ public class BallBotMainDrive extends LinearOpMode {
         }
         Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
-        hood = hardwareMap.get(CRServo.class, "hood");
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
         footL = hardwareMap.get(Servo.class, "footL");
@@ -83,7 +83,7 @@ public class BallBotMainDrive extends LinearOpMode {
         backLeft = hardwareMap.get(ColorSensor.class, "BLcolorsensor");
         backRight = hardwareMap.get(ColorSensor.class, "BRcolorsensor");
 
-        hood.setPower(0);
+        hood.stop();
         spin.goToSilo1();
 
         waitForStart();
@@ -103,11 +103,11 @@ public class BallBotMainDrive extends LinearOpMode {
             // --- SHOOTING & SPINDEXOR ---
             if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
-                hood.setPower(-.7);
+                hood.goToMax();
                 autoShoot.startCycle();
             } else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
-                hood.setPower(1);
+                hood.goToMin();
                 autoShoot.startCycle();
             }
             autoShoot.update();
@@ -146,13 +146,13 @@ public class BallBotMainDrive extends LinearOpMode {
             }
 
             if (gamepad2.dpad_up && !autoShoot.isBusy()) {
-                hood.setPower(1);
+                hood.goToMax();
             }
             else if (gamepad2.dpad_down && !autoShoot.isBusy()) {
-                hood.setPower(-.6);
+                hood.goToMin();
             }
             else if (!autoShoot.isBusy()) {
-                hood.setPower(0);
+                hood.stop();
             }
 
 
@@ -277,17 +277,23 @@ public class BallBotMainDrive extends LinearOpMode {
                 logTimer.reset();
             }
 
-            ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
+            // --- Update spindexer & autoShoot ---
             spin.update();
+            hood.update();
+            autoShoot.update();
             Spindexer.TelemetryPacket spina = spin.getTelemetry();
+            Hood.TelemetryPacket H = hood.getTelemetry();
 
-            // telemetry
+// --- TELEMETRY ---
+// SHOOTER
+            ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
             telemetry.addLine("=== SHOOTER ===");
             telemetry.addData("Mode", s.mode);
-            telemetry.addData("target", "%.2f", s.targetRPM);
-            telemetry.addData("current vel", "%.1f", s.currentRPM);
-            telemetry.addData("current err", "%.1f", s.errorRPM);
+            telemetry.addData("Target RPM", "%.2f", s.targetRPM);
+            telemetry.addData("Current RPM", "%.1f", s.currentRPM);
+            telemetry.addData("Error RPM", "%.1f", s.errorRPM);
 
+// DRIVE
             telemetry.addLine("=== FIELD DRIVE ===");
             telemetry.addData("Speed Mode", d.currentSpeed);
             telemetry.addData("Heading (deg)", "%.2f", d.headingDeg);
@@ -296,8 +302,8 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("RobotCmd (rx,ry)", "%.3f, %.3f", d.robotX, d.robotY);
             telemetry.addData("Motor LF/RF/LB/RB", "%.3f / %.3f / %.3f / %.3f", d.lf, d.rf, d.lb, d.rb);
             telemetry.addData("Pose (x,y,h)", "%.2f, %.2f, %.2f", d.pose.x, d.pose.y, d.pose.h);
-            telemetry.addData("Logging", logWriter != null ? ("ON: " + logFilePath) : "OFF");
 
+// SPINDEXER
             telemetry.addLine("=== SPINDEXER ===");
             telemetry.addData("Mode", spina.mode);
             telemetry.addData("Voltage", "%.3f", spina.voltage);
@@ -306,25 +312,49 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Error", "%.1f°", spina.angleError);
             telemetry.addData("Power", "%.2f", spina.appliedPower);
 
-            telemetry.addLine("=== TURRET ===");
-            telemetry.addData("mode: ", turret.mode);
-            telemetry.addData("power: ",turret.turretPower);
-            telemetry.addData("ty: ", turret.myTy);
+// SILOS
+            telemetry.addLine("=== SILOS ===");
+            Spindexer.BallColor[] silos = spina.siloColors;
+            for (int i = 0; i < silos.length; i++) {
+                String label = "Silo " + (i+1);
+                // Highlight the current silo
+                if (i == autoShoot.currentSiloIndex) label += " (ACTIVE)";
+                telemetry.addData(label, silos[i]);
+            }
 
-            telemetry.addLine("=== COLOR SENSOR ===");
-            telemetry.addLine("=== MIDDLE ===");
-            telemetry.addData("color middle Blue", middle.blue());
-            telemetry.addData("color middle Red",  middle.red());
-            telemetry.addData("color middle Green", middle.green());
-            telemetry.addLine("=== BACK LEFT ===");
-            telemetry.addData("color Back Left Blue", backLeft.blue());
-            telemetry.addData("color Back Left Red",  backLeft.red());
-            telemetry.addData("color Back Left Green", backLeft.green());
-            telemetry.addLine("=== BACK RIGHT ===");
-            telemetry.addData("color Back Right Blue", backRight.blue());
-            telemetry.addData("color Back Right Red", backRight.red());
-            telemetry.addData("color Back Right Blue",backRight.green());
+// TURRET
+            telemetry.addLine("=== TURRET ===");
+            telemetry.addData("Mode", turret.mode);
+            telemetry.addData("Power", turret.turretPower);
+            telemetry.addData("Ty", turret.myTy);
+
+// COLOR SENSORS
+            telemetry.addLine("=== COLOR SENSORS ===");
+            telemetry.addLine("Middle");
+            telemetry.addData("Blue", middle.blue());
+            telemetry.addData("Red", middle.red());
+            telemetry.addData("Green", middle.green());
+
+            telemetry.addLine("Back Left");
+            telemetry.addData("Blue", backLeft.blue());
+            telemetry.addData("Red", backLeft.red());
+            telemetry.addData("Green", backLeft.green());
+
+            telemetry.addLine("Back Right");
+            telemetry.addData("Blue", backRight.blue());
+            telemetry.addData("Red", backRight.red());
+            telemetry.addData("Green", backRight.green());
+            //hood
+
+            telemetry.addLine("=== HOOD ===");
+            telemetry.addData("Mode", H.mode);
+            telemetry.addData("Voltage", "%.3f", H.voltage);
+            telemetry.addData("Angle", "%.1f°", H.currentAngle);
+            telemetry.addData("Target", "%.1f°", H.targetAngle);
+            telemetry.addData("Error", "%.1f°", H.angleError);
+            telemetry.addData("Power", "%.2f", H.appliedPower);
             telemetry.update();
+
         } // end while opModeIsActive
 
         // cleanup
