@@ -65,6 +65,7 @@ public class turretTest extends LinearOpMode {
             // --- 3. STATE MACHINE ---
             if (turret.mode == turretMode.AUTO) {
                 turret.autoMode();
+                turret.limelight.pipelineSwitch(3); // Switch to pipeline number 3 which is ID:20
             }
             else if (currentSnapState == SnapState.HOMING_ROUTINE) {
                 if (gamepad1.share) {
@@ -128,6 +129,7 @@ public class turretTest extends LinearOpMode {
             telemetry.addData("ENC", turret.turret.getCurrentPosition());
             telemetry.addData("STATE", currentSnapState);
             telemetry.addData("MODE", turret.mode);
+                telemetry.addData("id", turret.getID());
             telemetry.update();
         }
     }

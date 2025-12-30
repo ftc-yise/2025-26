@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.yise;
 
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -8,6 +9,8 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.bylazar.configurables.annotations.Configurable;
+
+import java.util.List;
 
 @Configurable
 public class Turret {
@@ -213,4 +216,24 @@ public class Turret {
         myTx = tx;
         return myTx;
     }
+
+    public int getID() {
+
+        // Always refresh the result
+        result = limelight.getLatestResult();
+
+        if (result == null || !result.isValid()) {
+            return -1; // No Limelight data
+        }
+
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+
+        if (fiducials == null || fiducials.isEmpty()) {
+            return -1; // No AprilTags detected
+        }
+
+        // Return the first detected tag's ID
+        return fiducials.get(0).getFiducialId();
+    }
+
 }
