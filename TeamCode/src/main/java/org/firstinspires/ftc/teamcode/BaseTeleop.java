@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -12,12 +11,25 @@ import org.firstinspires.ftc.teamcode.yise.DriveClass;
 public class BaseTeleop extends LinearOpMode {
     private ElapsedTime runtime = new ElapsedTime();
     private DcMotor intake = null;
-
+    private DcMotor leftFrontDrive = null;
+    private DcMotor leftBackDrive = null;
+    private DcMotor rightFrontDrive = null;
+    private DcMotor rightBackDrive = null;
     @Override
     public void runOpMode() {
         DriveClass drive = new DriveClass(hardwareMap);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
+
+        leftFrontDrive = hardwareMap.get(DcMotor.class, "LeftFrontDrive");
+        leftBackDrive = hardwareMap.get(DcMotor.class, "LeftBackDrive");
+        rightFrontDrive = hardwareMap.get(DcMotor.class, "RightFrontDrive");
+        rightBackDrive = hardwareMap.get(DcMotor.class, "RightBackDrive");
+
+        leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
+        leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
+        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
+        rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
         waitForStart();
         runtime.reset();
@@ -39,6 +51,39 @@ public class BaseTeleop extends LinearOpMode {
             } else {
                 intake.setPower(0);
             }
+
+            if (gamepad1.a){
+                leftFrontDrive.setPower(1);
+                leftBackDrive.setPower(0);
+                rightBackDrive.setPower(0);
+                rightFrontDrive.setPower(0);
+                telemetry.addLine("=== left front drive ===");
+            } else if (gamepad1.y){
+                leftFrontDrive.setPower(0);
+                leftBackDrive.setPower(1);
+                rightBackDrive.setPower(0);
+                rightFrontDrive.setPower(0);
+                telemetry.addLine("=== left back drive ===");
+            } else if (gamepad1.x){
+                leftFrontDrive.setPower(0);
+                leftBackDrive.setPower(0);
+                rightBackDrive.setPower(1);
+                rightFrontDrive.setPower(0);
+                telemetry.addLine("=== right back drive ===");
+            } else if (gamepad1.b){
+                leftFrontDrive.setPower(0);
+                leftBackDrive.setPower(0);
+                rightBackDrive.setPower(0);
+                rightFrontDrive.setPower(1);
+                telemetry.addLine("=== right front drive ===");
+            } else{
+                leftFrontDrive.setPower(0);
+                leftBackDrive.setPower(0);
+                rightBackDrive.setPower(0);
+                rightFrontDrive.setPower(0);
+                telemetry.addLine("=== nuthin ===");
+            }
+            telemetry.update();
         }
         }
 }
