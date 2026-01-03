@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.pedropathing.control.FilteredPIDFCoefficients;
 import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
@@ -26,6 +27,9 @@ public class Constants {
             .useSecondaryTranslationalPIDF(true)
             .useSecondaryHeadingPIDF(true)
             .useSecondaryDrivePIDF(true)
+            .centripetalScaling(0.004)
+            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.12,0.0,0.04,0.3,0.001))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.2,0.0,0.05,0.3,0.008))
             .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.18, 0.001, 0.01, 0.001))
             .translationalPIDFCoefficients(new PIDFCoefficients(0.24, 0, 0.001, 0.008))
             .headingPIDFCoefficients(new PIDFCoefficients(0.4, 0, 0.01, 0.016))
