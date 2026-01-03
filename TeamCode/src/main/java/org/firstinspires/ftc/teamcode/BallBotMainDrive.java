@@ -90,12 +90,6 @@ public class BallBotMainDrive extends LinearOpMode {
         runtime.reset();
 
         while (opModeIsActive()) {
-
-            if(firstRun){
-                shooter.setPower(.5);
-                firstRun = false;
-            }
-
             // --- DRIVE & SPEED TOGGLE ---
             drive.handleSpeedToggle(gamepad1);
             drive.updateMotors(gamepad1, false);
@@ -292,6 +286,9 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Target RPM", "%.2f", s.targetRPM);
             telemetry.addData("Current RPM", "%.1f", s.currentRPM);
             telemetry.addData("Error RPM", "%.1f", s.errorRPM);
+            telemetry.addData("volt", s.motorPower);
+            telemetry.addData("pose", s.pose);
+            telemetry.addData("spin up time", s.spinupTimeSec);
 
 // DRIVE
             telemetry.addLine("=== FIELD DRIVE ===");

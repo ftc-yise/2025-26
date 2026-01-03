@@ -19,21 +19,21 @@ public class ShooterClass {
     // ======================================================
     // CONSTANTS (DIRECT DRIVE MODEL)
     // ======================================================
-    private static final double TICKS_PER_REV = 28.0;
+    private static final double TICKS_PER_REV = 21.35;
     private static final double MAX_RPM = 5450.0;
 
     private static final double MAX_TICKS_PER_SEC =
             (MAX_RPM * TICKS_PER_REV) / 60.0;
 
     // Feedforward base (REV standard)
-    private static final double BASE_F = 32767.0 / MAX_TICKS_PER_SEC;
+    private static final double BASE_F = 32767.0 / MAX_TICKS_PER_SEC + .005;
 
     // ======================================================
     // PIDF (REV VELOCITY CONTROLLER)
     // ======================================================
-    private double kP = 0.0012;
-    private double kI = 0.0;
-    private double kD = 0.00008;
+    private double kP = 0.0032;
+    private double kI = 0.001;
+    private double kD = 0.0008;
     private double kF = BASE_F;
 
     // ======================================================
@@ -119,6 +119,8 @@ public class ShooterClass {
         public double kP, kI, kD, kF;
         public double motorPower;
         public double batteryVoltage;
+
+        public double pose;
     }
 
     private final ShooterTelemetry t = new ShooterTelemetry();
@@ -188,7 +190,7 @@ public class ShooterClass {
 
         // Read velocity
         double velocityTicks = shooter.getVelocity();
-        currentRPM = (velocityTicks * 60.0) / TICKS_PER_REV;
+        currentRPM = ((velocityTicks * 60.0) / TICKS_PER_REV) * (1.125);
         rpmError = targetRPM - currentRPM;
 
         // Spin-up profiling
@@ -270,6 +272,8 @@ public class ShooterClass {
 
         t.motorPower = shooter.getPower();
         t.batteryVoltage = battery.getVoltage();
+
+        t.pose = shooter.getCurrentPosition();
     }
 
     public ShooterTelemetry getTelemetry() {

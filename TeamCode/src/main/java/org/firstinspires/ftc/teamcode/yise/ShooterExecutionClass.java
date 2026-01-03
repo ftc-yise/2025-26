@@ -47,7 +47,7 @@ public class ShooterExecutionClass {
         if (state != State.IDLE) return;
 
         // Compute which silos actually have balls
-        spindexer.disableSensorUpdates(); // 🔴 CRITICAL
+        spindexer.disableSensorUpdates(); //
         totalShots = 0;
         Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
         for (Spindexer.BallColor color : colors) {
