@@ -75,7 +75,8 @@ public class ShooterExecutionClass {
                 return;
 
             case MOVE_TO_SILO:
-                if (spindexer.getTelemetry().angleError < 1) {
+                if (Math.abs(spindexer.getTelemetry().angleError) < 1.0) {
+                    spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
                 }
@@ -110,8 +111,7 @@ public class ShooterExecutionClass {
 
                     // Clear the fired silo
                     if (currentSiloIndex != -1) {
-                        Spindexer.BallColor[] siloColors = spindexer.getTelemetry().siloColors;
-                        siloColors[currentSiloIndex] = Spindexer.BallColor.NONE;
+                        spindexer.clearSilo(currentSiloIndex);
                     }
 
                     if (shotsFired >= totalShots) {
