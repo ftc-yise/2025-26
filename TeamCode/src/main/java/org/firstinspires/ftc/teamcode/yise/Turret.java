@@ -144,6 +144,27 @@ public class Turret {
         //telemetry.update();
         turret.setPower(-turretPower);
     }
+
+    public void autoModePid(){
+        mode = turretMode.AUTO;
+        result = limelight.getLatestResult();
+
+        if (result != null && result.isValid()) {
+            double rawError_tx = result.getTx();
+            double currentError = rawError_tx * -1.0;
+            myTx = currentError;
+
+            // --- PID MATH ---
+            double pdPower = calculatePDPower(currentError) * FINAL_DIRECTION_MULTIPLIER;
+            turretPower = applySafety(pdPower);
+
+        } else {
+            turretPower = 0;
+            resetPD();
+        }
+        turret.setPower(turretPower);
+    }
+
     public void stop(){
         turret.setPower(0);
     }

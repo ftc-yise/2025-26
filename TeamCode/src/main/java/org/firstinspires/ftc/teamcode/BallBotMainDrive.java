@@ -174,6 +174,7 @@ public class BallBotMainDrive extends LinearOpMode {
             // 3. State Machine Execution
             if (turret.mode == Turret.turretMode.AUTO) {
                 turret.autoMode();
+                //turret.autoModePid();
             }
             else if (currentSnapState == SnapState.HOMING_ROUTINE) {
                 if (gamepad2.share) {

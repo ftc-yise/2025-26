@@ -65,7 +65,7 @@ public class turretTest extends LinearOpMode {
 
             // --- 3. STATE MACHINE ---
             if (turret.mode == turretMode.AUTO) {
-                turret.autoMode();
+                turret.autoModePid();
                 turret.limelight.pipelineSwitch(4); // Switch to pipeline number 3 which is ID:20
             } else if (currentSnapState == SnapState.HOMING_ROUTINE) {
                 if (gamepad1.touchpad) {
