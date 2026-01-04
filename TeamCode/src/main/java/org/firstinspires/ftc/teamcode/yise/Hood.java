@@ -133,8 +133,8 @@ public class Hood {
         manualMode = false;
     }
 
-    public void goToMin() { setTarget(MIN_ANGLE_DEG); }
-    public void goToMax() { setTarget(MAX_ANGLE_DEG); }
+    public void goToMin() { hood.setPower(-1); }
+    public void goToMax() { hood.setPower(1); }
 
     // ---------------- Update loop — call every loop ----------------
     public void update() {

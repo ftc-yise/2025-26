@@ -19,7 +19,7 @@ public class ShooterClass {
     // ======================================================
     // CONSTANTS (DIRECT DRIVE MODEL)
     // ======================================================
-    private static final double TICKS_PER_REV = 21.35;
+    private static final double TICKS_PER_REV = 24;
     private static final double MAX_RPM = 5450.0;
 
     private static final double MAX_TICKS_PER_SEC =
