@@ -18,10 +18,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
     public static OTOSConstants localizerConstants = new OTOSConstants()
             .hardwareMapName("otos")
+            .linearScalar(1.2)
+            .linearScalar(1.2)
             .linearUnit(DistanceUnit.INCH)
             .angleUnit(AngleUnit.RADIANS)
-            .linearScalar(1.5458)
             .offset(new SparkFunOTOS.Pose2D(0,0,(Math.toRadians(-90))));
+
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(6.35029)
             .useSecondaryTranslationalPIDF(true)
