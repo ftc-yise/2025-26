@@ -98,13 +98,13 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
                 hood.goToMax();
-                //autoShoot.startCycle();
-                spin.goToSilo1();
+                autoShoot.startCycle();
+                //spin.goToSilo1();
             } else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
                 hood.goToMin();
-                //autoShoot.startCycle();
-                spin.goToSilo2();
+                autoShoot.startCycle();
+                //spin.goToSilo2();
             }
             autoShoot.update();
 
@@ -135,7 +135,6 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad1.dpad_down) {
                 footL.setPosition(-1);
                 footR.setPosition(1);
-                spin.goToSilo3();
             }
             else if (gamepad1.dpad_up) {
                 footL.setPosition(1);
@@ -275,6 +274,7 @@ public class BallBotMainDrive extends LinearOpMode {
             }
 
             // --- Update spindexer & autoShoot ---
+            spin.sampleSensorsNow();
             spin.update();
             hood.update();
             autoShoot.update();
@@ -312,6 +312,12 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Error", "%.1f°", spina.angleError);
             telemetry.addData("Power", "%.2f", spina.appliedPower);
 
+// TURRET
+            telemetry.addLine("=== TURRET ===");
+            telemetry.addData("Mode", turret.mode);
+            telemetry.addData("Power", turret.turretPower);
+            telemetry.addData("Ty", turret.myTy);
+
 // SILOS
             telemetry.addLine("=== SILOS ===");
             Spindexer.BallColor[] silos = spina.siloColors;
@@ -321,12 +327,6 @@ public class BallBotMainDrive extends LinearOpMode {
                 if (i == autoShoot.currentSiloIndex) label += " (ACTIVE)";
                 telemetry.addData(label, silos[i]);
             }
-
-// TURRET
-            telemetry.addLine("=== TURRET ===");
-            telemetry.addData("Mode", turret.mode);
-            telemetry.addData("Power", turret.turretPower);
-            telemetry.addData("Ty", turret.myTy);
 
 // COLOR SENSORS
             telemetry.addLine("=== COLOR SENSORS ===");

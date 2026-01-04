@@ -30,9 +30,12 @@ public class Spindexer {
     private int[] lastSeenSiloBySensor = { -1, -1, -1 };
 
     // Unified PID gains (tune these at runtime)
-    public double kP = 0.005;
-    public double kI = 0.0;        // kept but unused (no I implemented)
-    public double kD = 0.0015;
+    private static final double kP = 0.006;
+    private static final double MAX_POWER = 1;
+    private static final double MIN_POWER = 0.04;
+    private static final double DEADBAND = 1.5;
+    private static final double SLOW_ZONE = 15.0;
+
 
     public static double silo1 = 20;
     public static double silo2 = 141;
@@ -226,44 +229,15 @@ public class Spindexer {
 
         // Choose base control mode (manual, neutral, or closed-loop)
         double rawOutput = 0.0;
+
+        double output = 0.0;
         if (mode == Mode.MANUAL) {
-            // driver controlled power
-            rawOutput = manualPower;
-        } else if (mode == Mode.NEUTRAL) {
-            // no motion
-            rawOutput = 0.0;
-        } else {
-            // TARGET or SEQUENCE: use PD + feedforward
-            long nowMs = System.currentTimeMillis();
-            double dt = (nowMs - lastTimeMs) / 1000.0;
-            if (dt <= 0.0) dt = 1e-3;
-
-            double deltaAngle = smallestAngleError(current, lastAngle); // current - lastAngle
-            double velocity = deltaAngle / dt; // deg/sec
-
-            double pTerm = kP * angleError;
-            double dTerm = -kD * velocity; // damping
-
-            double targetVel = Range.clip(angleError * 0.04, -90.0, 90.0); // deg/sec desired
-            double ff = targetVel * kV;
-
-            double pidOut = pTerm + dTerm;
-            double combined = pidOut + ff;
-
-            double scale = Range.clip(Math.abs(angleError) / 30.0, 0.25, 1.0);
-            rawOutput = combined * scale;
-
-            // update velocity / time history
-            lastAngle = current;
-            lastTimeMs = nowMs;
+            output = manualPower;
+        } else if (mode != Mode.NEUTRAL) {
+            output = computeSpindexerPower(current, targetAngleDeg);
         }
 
-        // apply rate limiting (smooth transitions) and final clamp
-        double limited = rateLimit(rawOutput);
-        limited = Range.clip(limited, -maxOutput, maxOutput);
-
-        // set the motor once here (single source of motor commands)
-        spindexer.setPower(limited);
+        spindexer.setPower(output);
 
         // --- populate telemetry packet (unchanged structure) ---
         t.mode = mode;
@@ -271,17 +245,15 @@ public class Spindexer {
         t.currentAngle = current;
         t.targetAngle = targetAngleDeg;
         t.angleError = angleError;
-        t.appliedPower = limited;
         t.manualPower = manualPower;
 
         t.pidP = kP * angleError;
         t.pidI = 0.0;
-        t.pidD = kD;
         for (int i = 0; i < 3; i++) {
             t.siloColors[i] = silos[i];
         }
 
-        writeCSV(current, targetAngleDeg, angleError, limited);
+        writeCSV(current, targetAngleDeg, angleError);
 
         // --- SENSOR READ / OWNERSHIP PHASE ---
         if (sensorUpdatesEnabled) {
@@ -293,6 +265,34 @@ public class Spindexer {
         if (mode == Mode.NEUTRAL) {
             Arrays.fill(lastSeenSiloBySensor, -1);
         }
+    }
+
+    // --- UPDATE CONTROL ---
+    private double computeSpindexerPower(double currentAngle, double targetAngle) {
+
+        double error = smallestAngleError(targetAngle, currentAngle);
+        double absError = Math.abs(error);
+
+        // Snap to zero when close enough
+        if (absError < DEADBAND) {
+            return 0.0;
+        }
+
+        // Proportional control
+        double power = kP * error;
+
+        // Slow down near target (hard damping, not PID)
+        if (absError < SLOW_ZONE) {
+            power *= absError / SLOW_ZONE;
+        }
+
+        // Minimum power to overcome stiction
+        if (Math.abs(power) < MIN_POWER) {
+            power = Math.signum(power) * MIN_POWER;
+        }
+
+        // Final clamp
+        return Range.clip(power, -MAX_POWER, MAX_POWER);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -324,8 +324,16 @@ public class Spindexer {
     public void sampleSensorsNow() {
         double voltage = encoder.getVoltage();
         double current = normalize((voltage / MAX_VOLTAGE) * 360.0);
+
+        // map sensors -> silos
         mapSensorsToSilos(current);
+
+        // copy into telemetry packet so callers reading getTelemetry() see the update immediately
+        for (int i = 0; i < 3; i++) {
+            t.siloColors[i] = silos[i];
+        }
     }
+
 
     // ─────────────────────────────────────────────────────────────────────
     // P-only control (legacy support) - retained but not used for TARGET mode
@@ -373,15 +381,14 @@ public class Spindexer {
     }
 
     // CSV logger
-    private void writeCSV(double angle, double target, double error, double power) {
+    private void writeCSV(double angle, double target, double error) {
         if (csv == null) return;
         try {
             csv.write(System.currentTimeMillis() + "," +
                     df.format(angle) + "," +
                     df.format(target) + "," +
                     df.format(error) + "," +
-                    df.format(t.pidP) + ",0,0," +
-                    df.format(power) + "\n");
+                    df.format(t.pidP) + ",0,0,");
             csv.flush();
         } catch (IOException ignored) {}
     }
@@ -394,25 +401,26 @@ public class Spindexer {
     }
 
     // Return a BallColor using sensor thresholds (you already tuned different thresholds per sensor)
+    // Return a BallColor using sensor thresholds (sensorIndex: 0=middle, 1=backLeft, 2=backRight)
     private BallColor detectBall(ColorSensor s, int sensorIndex) {
         int g = s.green();
         int b = s.blue();
 
-        // Note: thresholds are sensor-specific (kept your idea)
-        if (sensorIndex == 0) { // middle
-            if (b > 2002) return BallColor.PURPLE;
-            else if (g > 2000) return BallColor.GREEN;
+        if (sensorIndex == 0) { // middle sensor
+            if (b > 380) return BallColor.PURPLE;
+            else if (g > 400) return BallColor.GREEN;
             return BallColor.NONE;
         } else if (sensorIndex == 1) { // backLeft
             if (b > 1800) return BallColor.PURPLE;
             else if (g > 1800) return BallColor.GREEN;
             return BallColor.NONE;
-        } else { // backRight
-            if (g > 200 && b > 700) return BallColor.PURPLE;
-            if (g > 200) return BallColor.GREEN;
+        } else { // sensorIndex == 2 -> backRight
+            if (b > 600) return BallColor.PURPLE;
+            if (g > 550) return BallColor.GREEN;
             return BallColor.NONE;
         }
     }
+
 
     public void clearSilo(int index) {
         if (index >= 0 && index < silos.length) {

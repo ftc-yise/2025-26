@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.yise;
 
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import java.io.FileWriter;
@@ -84,6 +85,7 @@ public class Hood {
     public Hood(HardwareMap hardwaremap) {
         hood = hardwaremap.get(CRServo.class, "hood");
         encoder = hardwaremap.get(AnalogInput.class, "hoodInput");
+        hood.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
     // ---------------- Calibration helpers ----------------
