@@ -25,10 +25,11 @@ public class turretTest extends LinearOpMode {
     private static final int CENTER_TARGET = -685;
     private static final int TOLERANCE = 10;
 
+    private double distance = 0.0;
+
     @Override
     public void runOpMode() {
-        Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
-        turret.limelight.pipelineSwitch(2); // Switch to pipeline number 3 which is ID:20
+        Turret turret = new Turret(hardwareMap, Turret.turretAlliance.BLUE, telemetry);
 
         waitForStart();
 
@@ -66,7 +67,6 @@ public class turretTest extends LinearOpMode {
             // --- 3. STATE MACHINE ---
             if (turret.mode == turretMode.AUTO) {
                 turret.autoModePid();
-                turret.limelight.pipelineSwitch(4); // Switch to pipeline number 3 which is ID:20
             } else if (currentSnapState == SnapState.HOMING_ROUTINE) {
                 if (gamepad1.touchpad) {
                     if (!turret.limit.getState()) {
@@ -127,14 +127,18 @@ public class turretTest extends LinearOpMode {
             }
 
             // --- 4. TELEMETRY ---
-            telemetry.addLine("      TURRET:");
+            /*telemetry.addLine("      TURRET:");
             telemetry.addLine("---------------");
             telemetry.addData("ENC", turret.turret.getCurrentPosition());
-            telemetry.addData("STATE", currentSnapState);
-            LLResult result = null;
+            telemetry.addData("STATE", currentSnapState);*/
+            distance = turret.getDistance();
+            /*telemetry.addData("DISTANCE", distance);
+            telemetry.update();*/
+            /*LLResult result = null;
             result = turret.limelight.getLatestResult();
             if (result != null && result.isValid()) {
                     Pose3D botpose = result.getBotpose();
+                    //39.37 is a conversion from meters(what botpose gives) to inches
                     double x = botpose.getPosition().x * 39.37;
                     double y = botpose.getPosition().y * 39.37;
                     distance_g = getDistanceFromPose(x, y);
@@ -146,15 +150,15 @@ public class turretTest extends LinearOpMode {
                 telemetry.addData("MODE", turret.mode);
                 telemetry.addData("id", turret.getID());
                 telemetry.update();
-
+            */
         }
 
     }
-        double getDistanceFromPose(double x, double y){
+     /*   double getDistanceFromPose(double x, double y){
             double a = Math.abs(55 - y);
             double b = Math.abs(-58 - x);
             double c_sqrd = Math.pow(a, 2) + Math.pow(b, 2);
             double distance = Math.sqrt(c_sqrd);
             return distance;
-        }
+        }*/
 }

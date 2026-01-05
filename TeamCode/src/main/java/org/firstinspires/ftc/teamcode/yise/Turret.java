@@ -8,6 +8,8 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
+
 import com.bylazar.configurables.annotations.Configurable;
 
 import java.util.List;
@@ -28,7 +30,7 @@ public class Turret {
     public static double AUTO_MAX_POWER = 0.7;
     public static double AUTO_MIN_POWER_FLOOR = 0.15;
     public static double TARGET_TOLERANCE_DEG = 1.0;
-    public static double FINAL_DIRECTION_MULTIPLIER = 1.0;
+    public static double FINAL_DIRECTION_MULTIPLIER = -1.0;
 
     // --- ANALOG MANUAL CONTROL CONSTANTS  ---
     public static double MAX_MANUAL_POWER = 1.0;
@@ -49,13 +51,18 @@ public class Turret {
     public DigitalChannel limit; // Digital device for limit switch instead of push sensor because I get more advanced control
     public Telemetry telemetry;
 
-    public enum turretAlliance{ RED, BLUE }
-    public enum turretDirection { LEFT, RIGHT, STOP }
-    public enum turretMode{ AUTO, MANUAL }
+    public enum turretAlliance {RED, BLUE}
+    public turretAlliance currentAlliance;
+
+    public enum turretDirection {LEFT, RIGHT, STOP}
+
+    public enum turretMode {AUTO, MANUAL}
+
     public turretMode mode;
 
-    public Turret (HardwareMap hardwareMap, turretAlliance alliance, Telemetry telem){
+    public Turret(HardwareMap hardwareMap, turretAlliance alliance, Telemetry telem) {
         telemetry = telem;
+        currentAlliance = alliance;
 
         turret = hardwareMap.get(DcMotor.class, "turret");
 
@@ -71,9 +78,9 @@ public class Turret {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100);
         limelight.start();
-        if (alliance == turretAlliance.RED) {
+        if (currentAlliance == turretAlliance.RED) {
             limelight.pipelineSwitch(4);
-        } else if (alliance == turretAlliance.BLUE) {
+        } else if (currentAlliance == turretAlliance.BLUE) {
             limelight.pipelineSwitch(3);
         }
         mode = turretMode.MANUAL;
@@ -107,9 +114,15 @@ public class Turret {
         mode = turretMode.MANUAL;
         double p = 0;
         switch (direction) {
-            case LEFT:  p = -0.4; break;
-            case RIGHT: p = 0.4;  break;
-            case STOP:  p = 0;    break;
+            case LEFT:
+                p = -0.4;
+                break;
+            case RIGHT:
+                p = 0.4;
+                break;
+            case STOP:
+                p = 0;
+                break;
         }
         turret.setPower(applySafety(p));
     }
@@ -129,7 +142,7 @@ public class Turret {
         turret.setPower(turretPower);
     }
 
-    public void autoMode(){
+    public void autoMode() {
         mode = turretMode.AUTO;
 
         result = limelight.getLatestResult();
@@ -145,7 +158,7 @@ public class Turret {
         turret.setPower(-turretPower);
     }
 
-    public void autoModePid(){
+    public void autoModePid() {
         mode = turretMode.AUTO;
         result = limelight.getLatestResult();
 
@@ -165,14 +178,15 @@ public class Turret {
         turret.setPower(turretPower);
     }
 
-    public void stop(){
+    public void stop() {
         turret.setPower(0);
     }
-    private double getTurretPower (double tx, double myOffset, double mySlope) {
+
+    private double getTurretPower(double tx, double myOffset, double mySlope) {
         double myPower = 0.0;
 
         if (tx < 0) {
-            myPower = -.2*(tx * mySlope + myOffset);
+            myPower = -.2 * (tx * mySlope + myOffset);
             if (myPower > 0.7) {
                 myPower = AUTO_MAX_POWER;
             } else if (myPower < 0.35) {
@@ -180,22 +194,23 @@ public class Turret {
             }
             return myPower;
         } else if (tx > 0) {
-            myPower = -.2*(tx * mySlope - myOffset);
+            myPower = -.2 * (tx * mySlope - myOffset);
             if (myPower < -0.7) {
                 myPower = -1 * AUTO_MAX_POWER;
             } else if (myPower > -0.35) {
                 myPower = -1 * AUTO_MIN_POWER_FLOOR;
             }
             return myPower;
-        }
-        else {
+        } else {
             return myPower;
         }
     }
+
     public void setHome() {
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
+
     private void resetPD() {
         lastError = 0.0;
         lastTime = System.currentTimeMillis();
@@ -233,7 +248,7 @@ public class Turret {
         return outputPower;
     }
 
-    public double getTx(){
+    public double getTx() {
         myTx = tx;
         return myTx;
     }
@@ -254,7 +269,45 @@ public class Turret {
         }
 
         // Return the first detected tag's ID
-        return fiducials.get(0).getFiducialId();
+        {
+            return fiducials.get(0).getFiducialId();
+        }
     }
 
+    public double getDistance() {
+        double distance = 0.0;
+        double a = 0.0;
+        double b = 0.0;
+
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            Pose3D botpose = result.getBotpose();
+            //39.37 is a conversion from meters(what botpose gives) to inches
+            double x = botpose.getPosition().x * 39.37;
+            double y = botpose.getPosition().y * 39.37;
+            telemetry.addData("x", x);
+            telemetry.addData("y", y);
+
+            if (currentAlliance == turretAlliance.RED) {
+                telemetry.addData("Alliance", "RED");
+
+                a = Math.abs(55 - y);
+                b = Math.abs(-58 - x);
+            } else if (currentAlliance == turretAlliance.BLUE) {
+                telemetry.addData("Alliance", "BLUE");
+                a = Math.abs(55 - y);
+                b = Math.abs(-58 - x);
+            }
+            telemetry.addData("a", a);
+            telemetry.addData("b", b);
+
+            double c_sqrd = Math.pow(a, 2) + Math.pow(b, 2);
+            telemetry.addData("c_sqrd", c_sqrd);
+            distance = Math.sqrt(c_sqrd);
+            telemetry.addData("distance", distance);
+
+        }
+        telemetry.update();
+        return distance;
+    }
 }
