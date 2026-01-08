@@ -142,7 +142,7 @@ public class Turret {
         turret.setPower(turretPower);
     }
 
-    public void autoMode() {
+    public void autoModeStatic() {
         mode = turretMode.AUTO;
 
         result = limelight.getLatestResult();
@@ -158,7 +158,7 @@ public class Turret {
         turret.setPower(-turretPower);
     }
 
-    public void autoModePid() {
+    public void autoMode() {
         mode = turretMode.AUTO;
         result = limelight.getLatestResult();
 

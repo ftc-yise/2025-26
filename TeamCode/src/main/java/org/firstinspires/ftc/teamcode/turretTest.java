@@ -66,7 +66,7 @@ public class turretTest extends LinearOpMode {
 
             // --- 3. STATE MACHINE ---
             if (turret.mode == turretMode.AUTO) {
-                turret.autoModePid();
+                turret.autoMode();
             } else if (currentSnapState == SnapState.HOMING_ROUTINE) {
                 if (gamepad1.touchpad) {
                     if (!turret.limit.getState()) {
