@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 public class ShooterExecutionClass {
 
     public enum State {
+        JITTER,
         IDLE,
         MOVE_TO_SILO,
         SPIN_WAIT,
@@ -26,6 +27,7 @@ public class ShooterExecutionClass {
     private int shotsFired = 0;
     private int totalShots = 0;        // dynamically computed at cycle start
     public int currentSiloIndex = -1; // currently active silo
+    public boolean jittered = false;
 
     private final double LIFT_UP = 0.75;
     private final double LIFT_DOWN = 0.00;
@@ -42,7 +44,7 @@ public class ShooterExecutionClass {
         lift = hardwareMap.get(Servo.class, "lift");
     }
 
-  /*  // ---------------- START CYCLE ----------------
+    // ---------------- START CYCLE ----------------
     public void startCycle() {
         if (state != State.IDLE) return;
 
@@ -55,7 +57,26 @@ public class ShooterExecutionClass {
         }
 
 
-        if (totalShots == 0) return; // nothing to do
+        // inside startCycle() after computing totalShots:
+        if (totalShots == 0) {
+            // If we've never jittered this activation, do a short jitter to settle balls.
+            if (!jittered) {
+                jittered = true;
+                // disable sensor updates while we're jittering to avoid false reads
+                spindexer.disableSensorUpdates();
+                // reset the timer so the JITTER timing is reliable
+                timer.reset();
+                // enter jitter state
+                state = State.JITTER;
+            } else {
+                // we already jittered — nothing to do, re-enable sensors and go idle
+                spindexer.enableSensorUpdates();
+                state = State.IDLE;
+            }
+            return;
+        }
+        // nothing to do
+
 
         shotsFired = 0;
         state = State.MOVE_TO_SILO;
@@ -69,21 +90,45 @@ public class ShooterExecutionClass {
     public void update() {
 
         switch (state) {
+            case JITTER:
+                // deterministic 240ms two-pulse jitter: forward 0.12s, reverse 0.12s, stop
+                double t = timer.seconds();
+                if (t < 0.1) {
+                    // small forward pulse — tune amplitude if needed (0.4 is a good start)
+                    spindexer.setManual(0.2);
+                } else if (t < 0.2) {
+                    // short reverse pulse
+                    spindexer.setManual(-0.2);
+                } else {
+                    // finish jitter: stop motor, re-enable sensing, clear timers and go idle
+                    spindexer.setManual(0.0);
+                    spindexer.enableSensorUpdates();
+                    timer.reset();
+                    spindexer.goToSilo1();
+                    state = State.COMPLETE;
+                }
+                return;
+
 
             case IDLE:
                 shooter.update(false, false, false);
                 return;
 
             case MOVE_TO_SILO:
-                if (Math.abs(spindexer.getTelemetry().angleError) < 1.0) {
+                if (Math.abs(spindexer.getTelemetry().angleError) < 1.5) { // loosen tolerance
+                    spindexer.sampleSensorsNow();
+                    state = State.SPIN_WAIT;
+                    timer.reset();
+                } else if (timer.seconds() > 1.0) { // ⏱ watchdog
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
                 }
                 break;
 
+
             case SPIN_WAIT:
-                if (timer.seconds() > 0.3) {
+                if (timer.seconds() > 0.8) {
                     state = State.SPIN_UP_SHOOTER;
                     timer.reset();
                 }
@@ -129,14 +174,17 @@ public class ShooterExecutionClass {
                 break;
 
             case COMPLETE:
-                spindexer.enableSensorUpdates(); // 🟢 restore sensing
+                spindexer.enableSensorUpdates();
+                spindexer.sampleSensorsNow();
                 state = State.IDLE;
                 break;
+
         }
     }
 
     // ---------------- HELPER: Move to next non-empty silo ----------------
     private void moveToNextFullSilo() {
+        spindexer.sampleSensorsNow();
         Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
         int nextIndex = (currentSiloIndex + 1) % 3;
 
@@ -166,121 +214,16 @@ public class ShooterExecutionClass {
         state = State.COMPLETE;
     }
 
+
     // ---------------- IS BUSY ----------------
     public boolean isBusy() {
         return state != State.IDLE;
-    }*/
-
-
-    // -------------------------------------------------------------
-    //  START 3-SHOT AUTOMATIC SEQUENCE
-    // -------------------------------------------------------------
-    public void startCycle() {
-        if (state != State.IDLE) return;
-
-        shotsFired = 0;
-        state = State.MOVE_TO_SILO;
-
-        // Move to first silo (whatever is next)
-        moveSpindexerToNextSilo();
-
-        timer.reset();
     }
-
-    // -------------------------------------------------------------
-    //  MAIN UPDATE — CALL EVERY LOOP
-    // -------------------------------------------------------------
-    public void update() {
-
-        switch (state) {
-
-            case IDLE:
-                shooter.update(false, false, false); // Y = FULL
-                return;
-
-            case MOVE_TO_SILO:
-                if (spindexer.getTelemetry().angleError < 3) {
-                    state = State.SPIN_WAIT;
-                    timer.reset();
-                }
-                break;
-
-            case SPIN_WAIT:
-                // small settling delay
-                if (timer.seconds() > 0.3) {
-                    state = State.SPIN_UP_SHOOTER;
-                    timer.reset();
-                }
-                break;
-
-            case SPIN_UP_SHOOTER:
-                // give shooter time to reach speed
-                if (shotsFired >= 1){
-                    if (timer.seconds() > 1) {
-                        lift.setPosition(Servo.MAX_POSITION);
-                        timer.reset();
-                        state = State.FIRE_LIFT_UP;
-                    }
-                } else {
-                    if (timer.seconds() > 1.5) {
-                        lift.setPosition(Servo.MAX_POSITION);
-                        timer.reset();
-                        state = State.FIRE_LIFT_UP;
-                    }
-                }
-                break;
-
-            case FIRE_LIFT_UP:
-                if (timer.seconds() > 0.45) {
-                    lift.setPosition(Servo.MIN_POSITION);
-                    timer.reset();
-                    state = State.FIRE_LIFT_DOWN;
-                }
-                break;
-
-            case FIRE_LIFT_DOWN:
-                if (timer.seconds() > 0.45) {
-                    shotsFired++;
-
-                    if (shotsFired >= 3) {
-                        state = State.COMPLETE;
-                    } else {
-                        state = State.NEXT_SILO;
-                    }
-                }
-                break;
-
-            case NEXT_SILO:
-                moveSpindexerToNextSilo();
-                timer.reset();
-                state = State.MOVE_TO_SILO;
-                break;
-
-            case COMPLETE:
-                state = State.IDLE;
-                break;
-        }
-    }
-
     // -------------------------------------------------------------
     //  HELPER — Move to next silo in order 1→2→3→1
     // -------------------------------------------------------------
-    private void moveSpindexerToNextSilo() {
-        switch (spindexer.mode) {
-            case SILO_1:
-                spindexer.goToSilo2();
-                break;
-            case SILO_2:
-                spindexer.goToSilo3();
-                break;
-            default:
-                spindexer.goToSilo1();
-                break;
-        }
-    }
-
-    public boolean isBusy() {
-        return state != State.IDLE;
+    public void setLift(){
+        lift.setPosition(1);
     }
 
 }

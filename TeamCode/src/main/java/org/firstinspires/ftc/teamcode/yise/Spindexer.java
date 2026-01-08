@@ -37,9 +37,9 @@ public class Spindexer {
     private static final double SLOW_ZONE = 15.0;
 
 
-    public static double silo1 = 20;
-    public static double silo2 = 141;
-    public static double silo3 = 260;
+    public static double silo1 = 25;
+    public static double silo2 = 146;
+    public static double silo3 = 265;
 
     public enum Mode {
         NEUTRAL,
@@ -407,16 +407,16 @@ public class Spindexer {
         int b = s.blue();
 
         if (sensorIndex == 0) { // middle sensor
-            if (b > 380) return BallColor.PURPLE;
-            else if (g > 400) return BallColor.GREEN;
+            if (b > 340) return BallColor.PURPLE;
+            else if (g > 315) return BallColor.GREEN;
             return BallColor.NONE;
         } else if (sensorIndex == 1) { // backLeft
-            if (b > 1800) return BallColor.PURPLE;
-            else if (g > 1800) return BallColor.GREEN;
+            if (b > 450) return BallColor.PURPLE;
+            else if (g > 305) return BallColor.GREEN;
             return BallColor.NONE;
         } else { // sensorIndex == 2 -> backRight
-            if (b > 600) return BallColor.PURPLE;
-            if (g > 550) return BallColor.GREEN;
+            if (b > 285) return BallColor.PURPLE;
+            if (g > 220) return BallColor.GREEN;
             return BallColor.NONE;
         }
     }

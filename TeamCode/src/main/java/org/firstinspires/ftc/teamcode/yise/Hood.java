@@ -50,7 +50,7 @@ public class Hood {
     private double MAX_ANGLE_DEG = 60.0;
 
     // P / optional D control (start with P-only)
-    private double kP = 0.04;   // tune me
+    private double kP = 0.02;   // tune me
     private double kI = 0.0;
     private double kD = 0.0;
 
@@ -60,7 +60,7 @@ public class Hood {
 
     // Rate limiting
     private double lastPower = 0.0;
-    private double MAX_DELTA = 0.04;
+    private double MAX_DELTA = 0.4;
 
     // Telemetry struct (mirrors Spindexer style)
     public static class TelemetryPacket {
@@ -165,7 +165,7 @@ public class Hood {
         t.manualPower = manualPower;
 
         t.pidP = kP * error;
-        t.pidI = 0;
+        t.pidI = 0.001;
         t.pidD = 0;
         t.calibrated = calibrated;
 

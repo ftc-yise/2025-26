@@ -35,6 +35,7 @@ public class BallBotMainDrive extends LinearOpMode {
     private static final int LEFT_LIMIT = -1370;
     private static final int CENTER_TARGET = -685;
     private static final int TOLERANCE = 10;
+    private boolean shooting = false;
 
     // ------------------------------
 
@@ -97,13 +98,15 @@ public class BallBotMainDrive extends LinearOpMode {
             // --- SHOOTING & SPINDEXOR ---
             if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
-                hood.goToMax();
+                hood.setTarget(60); // e.g. 42.0
                 autoShoot.startCycle();
+                shooting = true;
                 //spin.goToSilo1();
             } else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
-                hood.goToMin();
+                hood.setTarget(0); // e.g. 0
                 autoShoot.startCycle();
+                shooting = true;
                 //spin.goToSilo2();
             }
             autoShoot.update();
@@ -128,7 +131,13 @@ public class BallBotMainDrive extends LinearOpMode {
                 intake.setPower(0);
                 walleft.setPower(0);
                 wallright.setPower(0);
-                //if (!autoShoot.isBusy()) spin.setNeutral();
+                if (!autoShoot.isBusy()) {
+                    spin.setNeutral();
+                    if (!gamepad2.x && !gamepad2.a) {
+                        autoShoot.jittered = false;
+                        shooting = false;
+                    }
+                }
             }
 
             // --- HOOD & FOOT ---
@@ -142,12 +151,14 @@ public class BallBotMainDrive extends LinearOpMode {
             }
 
             if (gamepad2.dpad_up && !autoShoot.isBusy()) {
-                hood.goToMax();
+                hood.setTarget(24); // e.g. 42.0
+                shooting = true;
             }
             else if (gamepad2.dpad_down && !autoShoot.isBusy()) {
-                hood.goToMin();
+                hood.setTarget(0); // e.g. 42.0
+                shooting = true;
             }
-            else if (!autoShoot.isBusy()) {
+            else if (!autoShoot.isBusy() && shooting == false) {
                 hood.stop();
             }
 
@@ -156,13 +167,13 @@ public class BallBotMainDrive extends LinearOpMode {
             // --- TURRET SYSTEM (INTEGRATED STATE MACHINE) ---
             // =========================================================
 
-            // 1. Mode Toggle (Options) & Homing (Share)
-            if (gamepad2.options && !modeTogglePressed) {
+            // 1. Mode Toggle (y) & Homing (Share)
+            if (gamepad2.y && !modeTogglePressed) {
                 turret.changeMode();
                 currentSnapState = SnapState.INACTIVE;
                 modeTogglePressed = true;
             }
-            if (!gamepad2.options) {
+            if (!gamepad2.y) {
                 modeTogglePressed = false;
             }
 
@@ -173,7 +184,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
             // 2. Input Detection (Manual Mode only)
             if (turret.mode == Turret.turretMode.MANUAL) {
-                double turretManualTrigger = gamepad2.right_trigger - gamepad2.left_trigger;
+                double turretManualTrigger = (gamepad2.left_trigger - gamepad2.right_trigger) * .8;
 
                 if (Math.abs(turretManualTrigger) > 0.05) {
                     currentSnapState = SnapState.INACTIVE;
@@ -324,7 +335,6 @@ public class BallBotMainDrive extends LinearOpMode {
             for (int i = 0; i < silos.length; i++) {
                 String label = "Silo " + (i+1);
                 // Highlight the current silo
-                if (i == autoShoot.currentSiloIndex) label += " (ACTIVE)";
                 telemetry.addData(label, silos[i]);
             }
 
