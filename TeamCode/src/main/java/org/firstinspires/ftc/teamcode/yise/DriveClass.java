@@ -108,7 +108,14 @@ public class DriveClass {
         rightBackDrive.setZeroPowerBehavior(mode);
     }
 
-    public void updateMotors(Gamepad gamepad) {
+    public void updateMotors(Gamepad gamepad, boolean reverse) {
+        double directional = 1;
+
+        if (reverse == true){
+            directional = -1;
+        } else {
+            directional = 1;
+        }
 
         //read the angle of the robot
         SparkFunOTOS.Pose2D pose = myOtos.getPosition();
@@ -116,8 +123,8 @@ public class DriveClass {
         double headingRad = Math.toRadians(headingDeg);
 
         // read raw inputs
-        double rawX = gamepad.left_stick_x;    // strafe
-        double rawY = -gamepad.left_stick_y;  // forward positive
+        double rawX = gamepad.left_stick_x * directional;    // strafe
+        double rawY = -gamepad.left_stick_y * directional;  // forward positive
         double rawTurn = -gamepad.right_stick_x; // rotation (driver)
 
         // deadbands to remove stick drift
