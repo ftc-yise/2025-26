@@ -249,9 +249,10 @@ public class BallBotMainDrive extends LinearOpMode {
                 if (snapTimer.seconds() < 1.0) turret.manualControl(-0.5);
                 else { turret.stop(); currentSnapState = SnapState.INACTIVE; }
             }
-            else if (currentSnapState == SnapState.INACTIVE && Math.abs(gamepad2.right_trigger - gamepad2.left_trigger) <= 0.05) {
+            else if (turret.mode == Turret.turretMode.MANUAL && currentSnapState == SnapState.INACTIVE && Math.abs(gamepad2.right_trigger - gamepad2.left_trigger) <= 0.05) {
                 turret.stop();
             }
+
 
             // START+BACK -> start logging
             if (gamepad1.start && gamepad1.back && logWriter != null) {
@@ -327,7 +328,6 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addLine("=== TURRET ===");
             telemetry.addData("Mode", turret.mode);
             telemetry.addData("Power", turret.turretPower);
-            telemetry.addData("Ty", turret.myTy);
 
 // SILOS
             telemetry.addLine("=== SILOS ===");
@@ -376,4 +376,5 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.update();
         }
     }
+
 }
