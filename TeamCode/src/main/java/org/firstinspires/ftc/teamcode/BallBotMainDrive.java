@@ -104,7 +104,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 //spin.goToSilo1();
             } else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
-                hood.setTarget(0); // e.g. 0
+                hood.setTarget(15); // e.g. 0
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo2();
@@ -113,10 +113,10 @@ public class BallBotMainDrive extends LinearOpMode {
 
             // --- INTAKE & WALL WHEELS ---
             if (gamepad1.right_trigger > 0.75) {
-                intake.setPower(.6);
+                intake.setPower(.7);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.1);
+                spin.setManual(.25);
             } else if (gamepad1.left_trigger > .75) {
                 intake.setPower(-.6);
                 walleft.setPower(1);

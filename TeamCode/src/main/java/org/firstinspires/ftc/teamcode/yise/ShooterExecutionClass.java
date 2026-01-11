@@ -93,19 +93,21 @@ public class ShooterExecutionClass {
             case JITTER:
                 // deterministic 240ms two-pulse jitter: forward 0.12s, reverse 0.12s, stop
                 double t = timer.seconds();
-                if (t < 0.1) {
+                if (t < 0.22) {
                     // small forward pulse — tune amplitude if needed (0.4 is a good start)
-                    spindexer.setManual(0.2);
-                } else if (t < 0.2) {
+                    spindexer.setManual(0.3);
+                } else if (t < 0.44) {
                     // short reverse pulse
                     spindexer.setManual(-0.2);
                 } else {
                     // finish jitter: stop motor, re-enable sensing, clear timers and go idle
                     spindexer.setManual(0.0);
                     spindexer.enableSensorUpdates();
-                    timer.reset();
                     spindexer.goToSilo1();
-                    state = State.COMPLETE;
+                    if (t > 1) {
+                        timer.reset();
+                        state = State.COMPLETE;
+                    }
                 }
                 return;
 
@@ -115,11 +117,11 @@ public class ShooterExecutionClass {
                 return;
 
             case MOVE_TO_SILO:
-                if (Math.abs(spindexer.getTelemetry().angleError) < 1.5) { // loosen tolerance
+                if (Math.abs(spindexer.getTelemetry().angleError) < 3) { // loosen tolerance
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
-                } else if (timer.seconds() > 1.0) { // ⏱ watchdog
+                } else if (timer.seconds() > 1) { // ⏱ watchdog
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
@@ -128,14 +130,14 @@ public class ShooterExecutionClass {
 
 
             case SPIN_WAIT:
-                if (timer.seconds() > 0.8) {
+                if (timer.seconds() > 0.5) {
                     state = State.SPIN_UP_SHOOTER;
                     timer.reset();
                 }
                 break;
 
             case SPIN_UP_SHOOTER:
-                if (timer.seconds() > 1.0) { // give shooter time to spin up
+                if (timer.seconds() > 0.8) { // give shooter time to spin up
                     lift.setPosition(Servo.MAX_POSITION);
                     timer.reset();
                     state = State.FIRE_LIFT_UP;
@@ -151,7 +153,7 @@ public class ShooterExecutionClass {
                 break;
 
             case FIRE_LIFT_DOWN:
-                if (timer.seconds() > 0.45) {
+                if (timer.seconds() > 0.55) {
                     shotsFired++;
 
                     // Clear the fired silo

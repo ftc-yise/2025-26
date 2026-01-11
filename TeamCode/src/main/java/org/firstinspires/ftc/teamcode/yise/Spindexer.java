@@ -30,16 +30,16 @@ public class Spindexer {
     private int[] lastSeenSiloBySensor = { -1, -1, -1 };
 
     // Unified PID gains (tune these at runtime)
-    private static final double kP = 0.006;
-    private static final double MAX_POWER = 1;
+    private static final double kP = 0.0045;
+    private static final double MAX_POWER = 0.7;
     private static final double MIN_POWER = 0.04;
-    private static final double DEADBAND = 1.5;
-    private static final double SLOW_ZONE = 15.0;
+    private static final double DEADBAND = 2;
+    private static final double SLOW_ZONE = 23.0;
 
 
-    public static double silo1 = 25;
-    public static double silo2 = 146;
-    public static double silo3 = 265;
+    public static double silo1 = 23;
+    public static double silo2 = 140;
+    public static double silo3 = 250;
 
     public enum Mode {
         NEUTRAL,
@@ -115,7 +115,7 @@ public class Spindexer {
     private boolean sequenceActive = false;
 
     // Angle tolerance for various checks
-    private final double ANGLE_TOLERANCE = 5.0;
+    private final double ANGLE_TOLERANCE = 4.0;
 
     // ─────────────────────────────────────────────────────────────────────
     // TELEMETRY STRUCT
@@ -168,7 +168,7 @@ public class Spindexer {
     public void goToSilo3() { targetAngleDeg = silo3; mode = Mode.SILO_3; }
 
     public void setManual(double power) {
-        manualPower = power;
+        manualPower = -power;
         mode = Mode.MANUAL;
     }
 
@@ -411,12 +411,12 @@ public class Spindexer {
             else if (g > 315) return BallColor.GREEN;
             return BallColor.NONE;
         } else if (sensorIndex == 1) { // backLeft
-            if (b > 450) return BallColor.PURPLE;
-            else if (g > 305) return BallColor.GREEN;
+            if (b > 225) return BallColor.PURPLE;
+            else if (g > 175) return BallColor.GREEN;
             return BallColor.NONE;
         } else { // sensorIndex == 2 -> backRight
-            if (b > 285) return BallColor.PURPLE;
-            if (g > 220) return BallColor.GREEN;
+            if (b > 175) return BallColor.PURPLE;
+            if (g > 250) return BallColor.GREEN;
             return BallColor.NONE;
         }
     }
