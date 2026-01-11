@@ -44,24 +44,24 @@ public class pedroSegmentedAuto extends LinearOpMode {
     // SENSOR SCALE: problem: when real = 24" sensor reads 15"
     // scaleFactor = real / reading = 24 / 15 = 1.6
     // We apply this scale to all X/Y pose coordinates (scaling from origin).
-    private static final double SCALE_FACTOR = 15.0 / 24.0;
+    private static final double SCALE_FACTOR = (15.0 / 24.0);
 
 
     org.firstinspires.ftc.teamcode.yise.Turret.turretAlliance alliance = Turret.turretAlliance.BLUE;
 
     @Override
     public void runOpMode() {
-        ShooterClass shooter = new ShooterClass(hardwareMap);
-        Spindexer spin = new Spindexer(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
-        Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
+        shooter = new ShooterClass(hardwareMap);
+        spin = new Spindexer(hardwareMap);
+        autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
+        turret = new Turret(hardwareMap, Turret.turretAlliance.BLUE, telemetry);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
-            directioninalMulti = 1;
+            directioninalMulti = -1;
         } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
             alliance = Turret.turretAlliance.BLUE;
-            directioninalMulti = -1;
+            directioninalMulti = 1;
         }
 
         // --- hardware init (adjust keys to your map) ---
@@ -93,7 +93,7 @@ public class pedroSegmentedAuto extends LinearOpMode {
 
         // set starting pose to the scaled first pose and a heading pointing toward p1
         //double startHeading = headingToward(p0, p1);
-        double startHeading = Math.toRadians(45);;
+        double startHeading = Math.toRadians(-135);;
 
         follower.setStartingPose(new Pose(p0.getX(), p0.getY(), startHeading));
 

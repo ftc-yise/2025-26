@@ -32,7 +32,7 @@ public class SensorSparkFunOTOS extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
         // Get a reference to the sensor
-        myOtos = hardwareMap.get(SparkFunOTOS.class, "sensor_otos");
+        myOtos = hardwareMap.get(SparkFunOTOS.class, "otos");
 
         // All the configuration for the OTOS is done in this helper method, check it out!
         configureOtos();
@@ -83,7 +83,7 @@ public class SensorSparkFunOTOS extends LinearOpMode {
         // myOtos.setLinearUnit(DistanceUnit.METER);
         myOtos.setLinearUnit(DistanceUnit.INCH);
         // myOtos.setAngularUnit(AnguleUnit.RADIANS);
-        myOtos.setAngularUnit(AngleUnit.DEGREES);
+        myOtos.setAngularUnit(AngleUnit.RADIANS);
 
         // Assuming you've mounted your sensor to a robot and it's not centered,
         // you can specify the offset for the sensor relative to the center of the
@@ -96,7 +96,7 @@ public class SensorSparkFunOTOS extends LinearOpMode {
         // clockwise (negative rotation) from the robot's orientation, the offset
         // would be {-5, 10, -90}. These can be any value, even the angle can be
         // tweaked slightly to compensate for imperfect mounting (eg. 1.3 degrees).
-        SparkFunOTOS.Pose2D offset = new SparkFunOTOS.Pose2D(0, 0, 0);
+        SparkFunOTOS.Pose2D offset = new SparkFunOTOS.Pose2D(0, 0, 180);
         myOtos.setOffset(offset);
 
         // Here we can set the linear and angular scalars, which can compensate for

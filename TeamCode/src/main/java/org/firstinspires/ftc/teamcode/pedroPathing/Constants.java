@@ -22,7 +22,7 @@ public class Constants {
             .linearScalar(1)
             .linearUnit(DistanceUnit.INCH)
             .angleUnit(AngleUnit.RADIANS)
-            .offset(new SparkFunOTOS.Pose2D(0,0,(Math.toRadians(180))));
+            .offset(new SparkFunOTOS.Pose2D(0,0,(Math.toRadians(90))));
 
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(6.35029)
