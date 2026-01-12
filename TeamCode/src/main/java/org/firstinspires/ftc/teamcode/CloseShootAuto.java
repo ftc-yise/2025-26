@@ -13,6 +13,7 @@ import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
+import org.firstinspires.ftc.teamcode.yise.lifter;
 
 @Autonomous(name="Auto close Side Shoot", group="auto")
 public class CloseShootAuto extends LinearOpMode {
@@ -34,7 +35,8 @@ public class CloseShootAuto extends LinearOpMode {
         DriveClass drive = new DriveClass(hardwareMap);
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
+        lifter lifter = new lifter(hardwareMap);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
         Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {

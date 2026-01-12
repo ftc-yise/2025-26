@@ -19,10 +19,15 @@ public class ShooterExecutionClass {
     }
 
     private State state = State.IDLE;
-    private Servo lift;
+    // add near top of class
+    private static final int LIFTER_DOWN_POS = 0;   // set to your measured down encoder count
+    private static final int LIFTER_UP_POS   = 800; // set to your measured up encoder count
+    private final lifter lifter;
     private final Spindexer spindexer;
     private final ShooterClass shooter;
     private final ElapsedTime timer = new ElapsedTime();
+    private final double LIFTER_MOVE_TIMEOUT = 1.2; // seconds
+
 
     private int shotsFired = 0;
     private int totalShots = 0;        // dynamically computed at cycle start
@@ -38,18 +43,18 @@ public class ShooterExecutionClass {
     // Example:
     // private int[] pattern = null;
 
-    public ShooterExecutionClass(Spindexer spin, ShooterClass shooter, HardwareMap hardwareMap) {
+    public ShooterExecutionClass(Spindexer spin, ShooterClass shooter, HardwareMap hardwareMap, lifter lift) {
         this.spindexer = spin;
         this.shooter = shooter;
-        lift = hardwareMap.get(Servo.class, "lift");
+        this.lifter = lift;
+        lifter.setPresetPositions(0.0, 1.0);
+        lifter.setCalibration(1.978, 0.1, 3.77, 1.1);  //Jack updating the lifter arm height (V2: was 3.758)
+
     }
 
     // ---------------- START CYCLE ----------------
     public void startCycle() {
         if (state != State.IDLE) return;
-
-        // Compute which silos actually have balls
-        spindexer.disableSensorUpdates(); //
         totalShots = 0;
         Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
         for (Spindexer.BallColor color : colors) {
@@ -88,6 +93,7 @@ public class ShooterExecutionClass {
 
     // ---------------- UPDATE LOOP ----------------
     public void update() {
+        lifter.update();
 
         switch (state) {
             case JITTER:
@@ -117,11 +123,11 @@ public class ShooterExecutionClass {
                 return;
 
             case MOVE_TO_SILO:
-                if (Math.abs(spindexer.getTelemetry().angleError) < 3) { // loosen tolerance
+                if (Math.abs(spindexer.getTelemetry().angleError) < 0.81) { // loosen tolerance
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
-                } else if (timer.seconds() > 1) { // ⏱ watchdog
+                } else if (timer.seconds() > 1.5) { // ⏱ watchdog
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
@@ -130,30 +136,30 @@ public class ShooterExecutionClass {
 
 
             case SPIN_WAIT:
-                if (timer.seconds() > 0.5) {
+                if (timer.seconds() > 0.3) {
                     state = State.SPIN_UP_SHOOTER;
                     timer.reset();
                 }
                 break;
 
             case SPIN_UP_SHOOTER:
-                if (timer.seconds() > 0.8) { // give shooter time to spin up
-                    lift.setPosition(Servo.MAX_POSITION);
+                if (timer.seconds() > 1.0) { // give shooter time to spin up
+                    lifter.setUp();
                     timer.reset();
                     state = State.FIRE_LIFT_UP;
                 }
                 break;
 
             case FIRE_LIFT_UP:
-                if (timer.seconds() > 0.45) {
-                    lift.setPosition(Servo.MIN_POSITION);
+                if (lifter.isUp()  || timer.seconds() > LIFTER_MOVE_TIMEOUT) {
+                    lifter.setDown();
                     timer.reset();
                     state = State.FIRE_LIFT_DOWN;
                 }
                 break;
 
             case FIRE_LIFT_DOWN:
-                if (timer.seconds() > 0.55) {
+                if (lifter.isDown()) {
                     shotsFired++;
 
                     // Clear the fired silo
@@ -224,8 +230,5 @@ public class ShooterExecutionClass {
     // -------------------------------------------------------------
     //  HELPER — Move to next silo in order 1→2→3→1
     // -------------------------------------------------------------
-    public void setLift(){
-        lift.setPosition(1);
-    }
 
 }

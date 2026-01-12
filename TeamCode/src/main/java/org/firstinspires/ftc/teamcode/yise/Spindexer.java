@@ -31,15 +31,15 @@ public class Spindexer {
 
     // Unified PID gains (tune these at runtime)
     private static final double kP = 0.0045;
-    private static final double MAX_POWER = 0.7;
+    private static final double MAX_POWER = 0.5;
     private static final double MIN_POWER = 0.04;
-    private static final double DEADBAND = 2;
-    private static final double SLOW_ZONE = 23.0;
+    private static final double DEADBAND = 1;
+    private static final double SLOW_ZONE = 13.0;
 
 
-    public static double silo1 = 23;
-    public static double silo2 = 140;
-    public static double silo3 = 250;
+    public static double silo1 = 2;
+    public static double silo2 = 244;
+    public static double silo3 = 123;
 
     public enum Mode {
         NEUTRAL,
