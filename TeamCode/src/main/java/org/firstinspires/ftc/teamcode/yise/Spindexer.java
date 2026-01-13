@@ -34,12 +34,12 @@ public class Spindexer {
     private static final double MAX_POWER = 0.5;
     private static final double MIN_POWER = 0.04;
     private static final double DEADBAND = 1;
-    private static final double SLOW_ZONE = 13.0;
+    private static final double SLOW_ZONE = 6.0;
 
 
-    public static double silo1 = 2;
-    public static double silo2 = 244;
-    public static double silo3 = 123;
+    public static double silo1 = 26;
+    public static double silo2 = 146;
+    public static double silo3 = 267;
 
     public enum Mode {
         NEUTRAL,
