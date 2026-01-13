@@ -23,14 +23,18 @@ public class Turret {
     public int farLimit = -1075;    // Left side home
     public int centerPos = (homePos + farLimit) / 2; // Approx. calculated center
 
+
     // --- PID CONTROL CONSTANTS  ---
-    public static double kP = 0.05;
-    public static double kD = 0.01;
-    public static double kI = 0.0;
-    public static double AUTO_MAX_POWER = 0.7;
+
+    // --- PIDF CONTROL CONSTANTS ---
+    public static double kP = 0.023;
+    public static double kI = 0.001;
+    public static double kD = 0.0065;
+    public static double kF = 0.17;   // static friction feedforward
+
+    public static double AUTO_MAX_POWER = 0.5;
+    public static double TARGET_TOLERANCE_DEG = 1.5;
     public static double AUTO_MIN_POWER_FLOOR = 0.15;
-    public static double TARGET_TOLERANCE_DEG = 1.0;
-    public static double FINAL_DIRECTION_MULTIPLIER = -1.0;
 
     // --- ANALOG MANUAL CONTROL CONSTANTS  ---
     public static double MAX_MANUAL_POWER = 1.0;
@@ -42,11 +46,19 @@ public class Turret {
     private long lastTime = System.currentTimeMillis();
     private double integralSum = 0.0;
 
+    double filtTx = 0;
+    double filtVel = 0;
+    public DcMotor turret;
+    double lastEncoderPos;
+
+    double lastKnownEncoderPos = lastEncoderPos;
+    public double lastVelocityTime;
+
+
     // --- CLASS VARIABLES ---
     LLResult result = null;
     public double turretPower = 0.0;
     public double myTx = 0.0;
-    public DcMotor turret;
     public Limelight3A limelight;
     public DigitalChannel limit; // Digital device for limit switch instead of push sensor because I get more advanced control
     public Telemetry telemetry;
@@ -69,14 +81,15 @@ public class Turret {
         // RESET ENCODER but stay in WITHOUT_ENCODER mode
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        turret.setDirection(DcMotor.Direction.REVERSE);
+        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        //turret.setDirection(DcMotor.Direction.REVERSE);
 
         // Limit Switch Setup
         limit = hardwareMap.get(DigitalChannel.class, "limit");
         limit.setMode(DigitalChannel.Mode.INPUT);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.setPollRateHz(100);
+        limelight.setPollRateHz(40);
         limelight.start();
         if (currentAlliance == turretAlliance.RED) {
             limelight.pipelineSwitch(4);
@@ -105,6 +118,7 @@ public class Turret {
             mode = turretMode.MANUAL;
             stop();
             resetPD();
+            resetVelocityTracking();
         } else if (mode == turretMode.MANUAL) {
             mode = turretMode.AUTO;
         }
@@ -155,26 +169,36 @@ public class Turret {
         }
         //telemetry.addData("Power=", turretPower);
         //telemetry.update();
-        turret.setPower(-turretPower);
+        turret.setPower(turretPower);
     }
 
     public void autoMode() {
         mode = turretMode.AUTO;
         result = limelight.getLatestResult();
+        if (!result.isValid()) {
+            // hold last known encoder pos with small P-only encoder loop
+            double posError = lastKnownEncoderPos - turret.getCurrentPosition();
+            turret.setPower(Range.clip(posError * 0.004, -0.2, 0.2));
+            return;
+        }
+        lastKnownEncoderPos = turret.getCurrentPosition();
 
         if (result != null && result.isValid()) {
-            double rawError_tx = result.getTx();
-            double currentError = rawError_tx * -1.0;
+            if (lastTime == 0) {
+                resetVelocityTracking();
+            }
+            double currentError = result.getTx();
             myTx = currentError;
 
-            // --- PID MATH ---
-            double pdPower = calculatePDPower(currentError) * FINAL_DIRECTION_MULTIPLIER;
-            turretPower = applySafety(pdPower);
+            double pidfPower = calculatePIDF(currentError);
+            turretPower = applySafety(pidfPower);
 
         } else {
-            turretPower = 0;
-            resetPD();
+            // Hold last known direction gently instead of snapping
+            turretPower = Range.clip(lastError * 0.02, -0.15, 0.15);
         }
+
+
         turret.setPower(turretPower);
     }
 
@@ -216,36 +240,71 @@ public class Turret {
         lastTime = System.currentTimeMillis();
     }
 
-    private double calculatePDPower(double currentError) {
-        if (Math.abs(currentError) < TARGET_TOLERANCE_DEG) {
-            resetPD();
-            return 0.0;
+    private double calculatePIDF(double error) {
+        double lastEncoderPos = turret.getCurrentPosition();
+
+
+        long now = System.currentTimeMillis();
+        double dt = Math.max((now - lastTime)/1000.0, 0.02);
+        if (dt <= 0) dt = 0.04;
+
+        // --- Deadband ---
+        if (Math.abs(error) < TARGET_TOLERANCE_DEG) {
+            // Hold against static friction instead of stopping
+            return kF * Math.signum(error);
+        }
+        double rawVel = (turret.getCurrentPosition() - lastEncoderPos) / dt;
+        filtVel = 0.6 * filtVel + 0.4 * rawVel;
+        lastEncoderPos = turret.getCurrentPosition();
+
+
+        // --- Integral ---
+        integralSum += error * dt;
+        integralSum = Range.clip(integralSum, -10, 10);
+
+        // --- Velocity-based D ---
+        int currentPos = turret.getCurrentPosition();
+        double velocityDt = (now - lastVelocityTime) / 1000.0;
+        if (velocityDt <= 0) velocityDt = 0.04;
+
+        double angularVelocity = (currentPos - lastEncoderPos) / velocityDt;
+        double derivative = -kD * angularVelocity;
+
+        lastEncoderPos = currentPos;
+        lastVelocityTime = now;
+
+        // --- Scaled Feedforward ---
+        double feedforward =
+                kF * Math.signum(error) *
+                        Range.clip(Math.abs(error) / 5.0, 0.0, 1.0);
+
+        // --- PIDF sum ---
+        double output =
+                (kP * error) +
+                        (kI * integralSum) +
+                        derivative +
+                        feedforward;
+
+        // --- Slowdown near target ---
+        double slowZone = 1.5;
+        if (Math.abs(error) < slowZone) {
+            output *= Math.abs(error) / slowZone;
         }
 
-        long currentTime = System.currentTimeMillis();
-        double deltaTime = (currentTime - lastTime) / 1000.0;
+        output = Range.clip(output, -AUTO_MAX_POWER, AUTO_MAX_POWER);
 
-        double proportional = kP * currentError;
-        double derivative = 0.0;
-        if (deltaTime != 0) {
-            derivative = kD * ((currentError - lastError) / deltaTime);
+        lastError = error;
+        lastTime = now;
+
+        // --- Minimum power floor to overcome static friction ---
+        double minPower = 0.12;
+
+        if (Math.abs(output) > 0 && Math.abs(output) < minPower) {
+            output = Math.signum(output) * minPower;
         }
 
-        double outputPower = proportional + derivative;
 
-        if (outputPower > 0 && Math.abs(outputPower) < AUTO_MIN_POWER_FLOOR) {
-            outputPower = AUTO_MIN_POWER_FLOOR;
-        } else if (outputPower < 0 && Math.abs(outputPower) < AUTO_MIN_POWER_FLOOR) {
-            outputPower = -AUTO_MIN_POWER_FLOOR;
-        }
-
-        if (outputPower > AUTO_MAX_POWER) outputPower = AUTO_MAX_POWER;
-        else if (outputPower < -AUTO_MAX_POWER) outputPower = -AUTO_MAX_POWER;
-
-        lastError = currentError;
-        lastTime = currentTime;
-
-        return outputPower;
+        return output;
     }
 
     public double getTx() {
@@ -310,4 +369,15 @@ public class Turret {
         telemetry.update();
         return distance;
     }
+
+    private void resetPID() {
+        lastError = 0.0;
+        integralSum = 0.0;
+        lastTime = System.currentTimeMillis();
+    }
+    private void resetVelocityTracking() {
+        lastEncoderPos = turret.getCurrentPosition();
+        lastVelocityTime = System.currentTimeMillis();
+    }
+
 }

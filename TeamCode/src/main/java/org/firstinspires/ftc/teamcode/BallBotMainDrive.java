@@ -7,6 +7,7 @@ import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.Parameters;
+import org.firstinspires.ftc.teamcode.yise.lifter;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -64,7 +65,8 @@ public class BallBotMainDrive extends LinearOpMode {
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
         Hood hood = new Hood(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
+        lifter lifter = new lifter(hardwareMap);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
@@ -86,6 +88,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
         hood.stop();
         spin.goToSilo1();
+        lifter.setDown();
 
         waitForStart();
         runtime.reset();
@@ -96,7 +99,7 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
-            if (gamepad2.a && !autoShoot.isBusy()) {
+            /*if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
                 hood.setTarget(60); // e.g. 42.0
                 autoShoot.startCycle();
@@ -104,25 +107,50 @@ public class BallBotMainDrive extends LinearOpMode {
                 //spin.goToSilo1();
             } else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
-                hood.setTarget(0); // e.g. 0
+                hood.setTarget(15); // e.g. 0
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo2();
             }
+            autoShoot.update();*/
+            //old will re used after comp. This is our color recognition
+
+            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
+            if (gamepad2.a) {
+                // start forced-fire if not already
+                shooter.update(false, false, true);    // shooter high goal
+                hood.setTarget(60);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            } else if (gamepad2.x) {
+                shooter.update(false, true, false);    // shooter lower goal
+                hood.setTarget(15);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            } else {
+                // if neither held, and we're in forced-mode, stop forced mode
+                if (autoShoot.forceShooting) {
+                    autoShoot.stopForcedCycle();
+                }
+                // normal idle behavior handled elsewhere
+            }
             autoShoot.update();
+            //new will delete in a week or so
 
             // --- INTAKE & WALL WHEELS ---
-            if (gamepad1.right_trigger > 0.75) {
-                intake.setPower(.6);
+            if (gamepad1.right_trigger > 0.75 && !shooting) {
+                intake.setPower(.7);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.1);
-            } else if (gamepad1.left_trigger > .75) {
+                spin.setManual(.25);
+            } else if (gamepad1.left_trigger > .75 && !shooting) {
                 intake.setPower(-.6);
                 walleft.setPower(1);
                 wallright.setPower(1);
                 spin.setManual(.2);
-            } else if (gamepad1.right_bumper) {
+            } else if (gamepad1.right_bumper && !shooting) {
                 intake.setPower(-.6);
                 walleft.setPower(-1);
                 wallright.setPower(-1);
@@ -204,6 +232,7 @@ public class BallBotMainDrive extends LinearOpMode {
             // 3. State Machine Execution
             if (turret.mode == Turret.turretMode.AUTO) {
                 turret.autoMode();
+                turret.mode = Turret.turretMode.AUTO;
             }
             else if (currentSnapState == SnapState.HOMING_ROUTINE) {
                 if (gamepad2.share) {
@@ -249,9 +278,10 @@ public class BallBotMainDrive extends LinearOpMode {
                 if (snapTimer.seconds() < 1.0) turret.manualControl(-0.5);
                 else { turret.stop(); currentSnapState = SnapState.INACTIVE; }
             }
-            else if (currentSnapState == SnapState.INACTIVE && Math.abs(gamepad2.right_trigger - gamepad2.left_trigger) <= 0.05) {
+            else if (turret.mode == Turret.turretMode.MANUAL && currentSnapState == SnapState.INACTIVE && Math.abs(gamepad2.right_trigger - gamepad2.left_trigger) <= 0.05) {
                 turret.stop();
             }
+
 
             // START+BACK -> start logging
             if (gamepad1.start && gamepad1.back && logWriter != null) {
@@ -291,6 +321,7 @@ public class BallBotMainDrive extends LinearOpMode {
             autoShoot.update();
             Spindexer.TelemetryPacket spina = spin.getTelemetry();
             Hood.TelemetryPacket H = hood.getTelemetry();
+            lifter.TelemetryPacket l = lifter.getTelemetry();
 
 // --- TELEMETRY ---
 // SHOOTER
@@ -327,7 +358,6 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addLine("=== TURRET ===");
             telemetry.addData("Mode", turret.mode);
             telemetry.addData("Power", turret.turretPower);
-            telemetry.addData("Ty", turret.myTy);
 
 // SILOS
             telemetry.addLine("=== SILOS ===");
@@ -354,7 +384,14 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Blue", backRight.blue());
             telemetry.addData("Red", backRight.red());
             telemetry.addData("Green", backRight.green());
-            //hood
+//lift
+
+            telemetry.addLine("=== LIFT ===");
+            telemetry.addData("pose", l.position);
+            telemetry.addData("volt", l.voltage);
+            telemetry.addData("err", l.error);
+            telemetry.addData("mode", l.mode);
+//hood
 
             telemetry.addLine("=== HOOD ===");
             telemetry.addData("Mode", H.mode);
@@ -376,4 +413,5 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.update();
         }
     }
+
 }

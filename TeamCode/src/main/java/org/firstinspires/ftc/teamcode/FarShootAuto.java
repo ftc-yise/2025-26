@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
+import org.firstinspires.ftc.teamcode.yise.lifter;
 
 @Autonomous(name="Auto Far Side Shoot", group="auto")
 public class FarShootAuto extends LinearOpMode {
@@ -29,7 +30,8 @@ public class FarShootAuto extends LinearOpMode {
         DriveClass drive = new DriveClass(hardwareMap);
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap);
+        lifter lifter = new lifter(hardwareMap);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
         org.firstinspires.ftc.teamcode.yise.Turret turret = new org.firstinspires.ftc.teamcode.yise.Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
         hood = hardwareMap.get(CRServo.class, "hood");
