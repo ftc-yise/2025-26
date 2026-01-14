@@ -67,13 +67,13 @@ public class BallBotMainDrive extends LinearOpMode {
         Hood hood = new Hood(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
         } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
             alliance = Turret.turretAlliance.BLUE;
         }
-        Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");

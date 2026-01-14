@@ -125,6 +125,8 @@ public class Turret {
     }
 
     public void manualMode(turretDirection direction) {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         mode = turretMode.MANUAL;
         double p = 0;
         switch (direction) {
@@ -142,6 +144,8 @@ public class Turret {
     }
 
     public void manualControl(double power) {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         mode = turretMode.MANUAL;
 
         // --- POWER CURVE MATH STUFF ---
@@ -154,6 +158,11 @@ public class Turret {
 
         turretPower = applySafety(finalPower);
         turret.setPower(turretPower);
+    }
+
+    public void runto(int x){
+        turret.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        turret.setTargetPosition(x);
     }
 
     public void autoModeStatic() {
@@ -173,6 +182,8 @@ public class Turret {
     }
 
     public void autoMode() {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         mode = turretMode.AUTO;
         result = limelight.getLatestResult();
         if (!result.isValid()) {
@@ -203,6 +214,8 @@ public class Turret {
     }
 
     public void stop() {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         turret.setPower(0);
     }
 
@@ -241,6 +254,8 @@ public class Turret {
     }
 
     private double calculatePIDF(double error) {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         double lastEncoderPos = turret.getCurrentPosition();
 
 
