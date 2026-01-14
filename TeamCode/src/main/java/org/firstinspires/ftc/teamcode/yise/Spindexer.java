@@ -37,9 +37,9 @@ public class Spindexer {
     private static final double SLOW_ZONE = 6.0;
 
 
-    public static double silo1 = 26;
-    public static double silo2 = 146;
-    public static double silo3 = 267;
+    public static double silo1 = 86.3;
+    public static double silo2 = 209.5;
+    public static double silo3 = 327.7;
 
     public enum Mode {
         NEUTRAL,

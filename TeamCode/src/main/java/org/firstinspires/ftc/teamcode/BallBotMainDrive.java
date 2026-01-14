@@ -358,6 +358,7 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addLine("=== TURRET ===");
             telemetry.addData("Mode", turret.mode);
             telemetry.addData("Power", turret.turretPower);
+            telemetry.addData("pose", turret.getPose());
 
 // SILOS
             telemetry.addLine("=== SILOS ===");

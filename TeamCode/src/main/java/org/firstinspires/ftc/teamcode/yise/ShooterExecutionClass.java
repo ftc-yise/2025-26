@@ -24,7 +24,7 @@ public class ShooterExecutionClass {
     private final Spindexer spindexer;
     private final ShooterClass shooter;
     private final ElapsedTime timer = new ElapsedTime();
-    private final double LIFTER_MOVE_TIMEOUT = 1.2; // seconds
+    private final double LIFTER_MOVE_TIMEOUT = 2.2; // seconds
 
     private int shotsFired = 0;
     private int totalShots = 0;        // dynamically computed at cycle start
@@ -135,11 +135,11 @@ public class ShooterExecutionClass {
             case MOVE_TO_SILO:
                 // If forced, accept looser tolerance and keep moving between silos
                 double angleErr = Math.abs(spindexer.getTelemetry().angleError);
-                if (angleErr < 3.0) {
+                if (angleErr < 0.75) {
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
-                } else if (timer.seconds() > 1.5) { // watchdog
+                } else if (timer.seconds() > 1) { // watchdog
                     spindexer.sampleSensorsNow();
                     state = State.SPIN_WAIT;
                     timer.reset();
@@ -147,14 +147,14 @@ public class ShooterExecutionClass {
                 break;
 
             case SPIN_WAIT:
-                if (timer.seconds() > 0.3) {
+                if (timer.seconds() > 0.1) {
                     state = State.SPIN_UP_SHOOTER;
                     timer.reset();
                 }
                 break;
 
             case SPIN_UP_SHOOTER:
-                if (timer.seconds() > 1.0) {
+                if (shooter.getTelemetry().errorRPM < 35 || timer.seconds() > LIFTER_MOVE_TIMEOUT) {
                     lifter.setUp();
                     timer.reset();
                     state = State.FIRE_LIFT_UP;

@@ -58,6 +58,7 @@ public class Turret {
     // --- CLASS VARIABLES ---
     LLResult result = null;
     public double turretPower = 0.0;
+    public double pose = 0.0;
     public double myTx = 0.0;
     public Limelight3A limelight;
     public DigitalChannel limit; // Digital device for limit switch instead of push sensor because I get more advanced control
@@ -389,6 +390,11 @@ public class Turret {
         lastError = 0.0;
         integralSum = 0.0;
         lastTime = System.currentTimeMillis();
+    }
+
+    public double getPose() {
+        pose = turret.getCurrentPosition();
+        return pose;
     }
     private void resetVelocityTracking() {
         lastEncoderPos = turret.getCurrentPosition();
