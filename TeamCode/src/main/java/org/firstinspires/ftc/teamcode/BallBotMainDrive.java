@@ -8,6 +8,7 @@ import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.Parameters;
 import org.firstinspires.ftc.teamcode.yise.lifter;
+import org.firstinspires.ftc.teamcode.yise.Ledclass;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -50,6 +51,10 @@ public class BallBotMainDrive extends LinearOpMode {
     private ColorSensor backLeft = null;
     private ColorSensor backRight = null;
 
+    public Ledclass led1;
+    public Ledclass led2;
+    public Ledclass led3;
+
     private final ElapsedTime runtime = new ElapsedTime();
     private final ElapsedTime logTimer = new ElapsedTime();
     private PrintWriter logWriter = null;
@@ -69,6 +74,7 @@ public class BallBotMainDrive extends LinearOpMode {
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
         Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
+
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
         } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
@@ -85,6 +91,10 @@ public class BallBotMainDrive extends LinearOpMode {
         middle = hardwareMap.get(ColorSensor.class, "middlecolorsensor");
         backLeft = hardwareMap.get(ColorSensor.class, "BLcolorsensor");
         backRight = hardwareMap.get(ColorSensor.class, "BRcolorsensor");
+
+        led1 = new Ledclass(hardwareMap, "led1");
+        led2 = new Ledclass(hardwareMap, "led2");
+        led3 = new Ledclass(hardwareMap, "led3");
 
         hood.stop();
         spin.goToSilo1();
@@ -123,9 +133,15 @@ public class BallBotMainDrive extends LinearOpMode {
                 if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
                     autoShoot.startForcedCycle();
                 }
+                led1.setColor(0);
+                led2.setColor(0);
+                led3.setColor(0);
             } else if (gamepad2.x) {
                 shooter.update(false, true, false);    // shooter lower goal
                 hood.setTarget(15);
+                led1.setColor(0);
+                led2.setColor(0);
+                led3.setColor(0);
                 if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
                     autoShoot.startForcedCycle();
                 }
@@ -138,6 +154,16 @@ public class BallBotMainDrive extends LinearOpMode {
             }
             autoShoot.update();
             //new will delete in a week or so
+
+            if (turret.getID() == 21 || turret.getID() == 24){
+                led1.setBlue();
+                led2.setBlue();
+                led3.setBlue();
+            } else {
+                led1.setColor(0);
+                led2.setColor(0);
+                led3.setColor(0);
+            }
 
             // --- INTAKE & WALL WHEELS ---
             if (gamepad1.right_trigger > 0.75 && !shooting) {
