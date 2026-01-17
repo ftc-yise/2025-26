@@ -136,7 +136,7 @@ public class ShooterExecutionClass {
                 // If forced, accept looser tolerance and keep moving between silos
                 double angleErr = Math.abs(spindexer.getTelemetry().angleError);
                 if (timer.seconds() > 0.12) {
-                    if (angleErr < 2) {
+                    if (angleErr < 3) {
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
@@ -157,7 +157,7 @@ public class ShooterExecutionClass {
                 break;
 
             case SPIN_UP_SHOOTER:
-                if (shooter.getTelemetry().errorRPM < 150) {
+                if (shooter.getTelemetry().errorRPM < 100) {
                     if (timer.seconds() > .35) {
                         lifter.setUp();
                         timer.reset();

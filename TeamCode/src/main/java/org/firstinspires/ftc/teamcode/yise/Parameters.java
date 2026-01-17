@@ -11,9 +11,14 @@ public class Parameters extends LinearOpMode {
         RED,
         BLUE
     }
+    public enum Upacreek {
+        YES,
+        NO
+    }
 
 
     public static Color allianceColor;
+    public static Upacreek upacreek;
 
     public static double WAIT;
     public boolean xReleased;
@@ -56,6 +61,22 @@ public class Parameters extends LinearOpMode {
             if (!gamepad1.x && !gamepad1.a && !gamepad1.b && !xReleased) {
                 xReleased = true;
             }
+        }
+
+        while (!gamepad1.a && !gamepad1.b) {
+            telemetry.addLine("upacreek \n");
+            telemetry.addLine("X - yes \n O - no");
+            telemetry.update();
+
+            if (gamepad1.a) {
+                upacreek = Upacreek.YES;
+            } else if (gamepad1.b) {
+                upacreek = Upacreek.NO;
+            }
+        }
+
+        while (gamepad1.a || gamepad1.b) {
+            //WAIT until released
         }
 
         while (!gamepad1.a) {

@@ -15,10 +15,11 @@ import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
-@Autonomous(name="Auto Far Side Shoot", group="auto")
-public class FarShootAuto extends LinearOpMode {
+@Autonomous(name="Auto Far Side Shoot Pattern", group="auto")
+public class FarShootAutoNew extends LinearOpMode {
 
     private ElapsedTime runtime = new ElapsedTime();
+
 
 
     static final double     FORWARD_SPEED = 0.6;
@@ -82,8 +83,8 @@ public class FarShootAuto extends LinearOpMode {
             turret.limelight.pipelineSwitch(3);
         }
         turret.autoMode();
-        runtime.reset();
-        while (opModeIsActive() && ((runtime.seconds() < 8))) {
+
+        while (opModeIsActive() && ((runtime.seconds() > 8))) {
             turret.autoMode();
             turret.mode = Turret.turretMode.AUTO;
             // start forced-fire if not already
@@ -123,7 +124,7 @@ public class FarShootAuto extends LinearOpMode {
             intake.setPower(1);
             walleft.setPower(1);
             wallright.setPower(1);
-            spin.setManual(.08);
+            spin.setManual(0.2);
             drive.setAutoPower(.51, .51, .51, .51);
             telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
             telemetry.update();

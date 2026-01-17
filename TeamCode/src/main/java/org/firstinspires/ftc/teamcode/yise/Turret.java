@@ -27,7 +27,7 @@ public class Turret {
     // --- PID CONTROL CONSTANTS  ---
 
     // --- PIDF CONTROL CONSTANTS ---
-    public static double kP = 0.023;
+    public static double kP = 0.020;
     public static double kI = 0.001;
     public static double kD = 0.0065;
     public static double kF = 0.17;   // static friction feedforward

@@ -62,9 +62,9 @@ public class Spindexer {
 
     // integrator state
     private double integrator = 0.0;
-    public static double silo1 = 352.8;
-    public static double silo2 = 232.5;
-    public static double silo3 = 113;
+    public static double silo1 = 68;
+    public static double silo2 = 190;
+    public static double silo3 = 307;
 
     public enum Mode {
         NEUTRAL,

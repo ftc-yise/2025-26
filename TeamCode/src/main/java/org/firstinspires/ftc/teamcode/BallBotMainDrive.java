@@ -211,14 +211,23 @@ public class BallBotMainDrive extends LinearOpMode {
 
             if (gamepad2.dpad_up && !autoShoot.isBusy()) {
                 hood.setTarget(24); // e.g. 42.0
+                lifter.setUp();
                 shooting = true;
             }
             else if (gamepad2.dpad_down && !autoShoot.isBusy()) {
                 hood.setTarget(0); // e.g. 42.0
+                lifter.setDown();
                 shooting = true;
             }
-            else if (!autoShoot.isBusy() && shooting == false) {
-                hood.stop();
+
+
+            if (gamepad2.right_bumper && !autoShoot.isBusy()) {
+                spin.setManual(0.09);
+                shooting = true;
+            }
+            else if (gamepad2.left_bumper && !autoShoot.isBusy()) {
+                spin.setManual(-0.09);
+                shooting = true;
             }
 
 
@@ -243,7 +252,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
             // 2. Input Detection (Manual Mode only)
             if (turret.mode == Turret.turretMode.MANUAL) {
-                double turretManualTrigger = (gamepad2.left_trigger - gamepad2.right_trigger) * .8;
+                double turretManualTrigger = (gamepad2.left_trigger - gamepad2.right_trigger) * -.8;
 
                 if (Math.abs(turretManualTrigger) > 0.05) {
                     currentSnapState = SnapState.INACTIVE;
