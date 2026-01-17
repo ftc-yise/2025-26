@@ -37,7 +37,7 @@ public class Parameters extends LinearOpMode {
                 //WAIT until released
         }
 
-        while (!gamepad1.b) {
+        while (!gamepad1.y) {
             telemetry.addLine("Wait Seconds: " + WAIT);
             telemetry.addLine("▢ = -1 \n X = +1 \n O = 0 \n Y to continue");
             telemetry.update();

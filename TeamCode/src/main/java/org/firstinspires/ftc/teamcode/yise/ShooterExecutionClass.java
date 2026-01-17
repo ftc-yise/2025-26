@@ -24,7 +24,7 @@ public class ShooterExecutionClass {
     private final Spindexer spindexer;
     private final ShooterClass shooter;
     private final ElapsedTime timer = new ElapsedTime();
-    private final double LIFTER_MOVE_TIMEOUT = 2.2; // seconds
+    private final double LIFTER_MOVE_TIMEOUT = 4.2; // seconds
 
     private int shotsFired = 0;
     private int totalShots = 0;        // dynamically computed at cycle start
@@ -135,38 +135,44 @@ public class ShooterExecutionClass {
             case MOVE_TO_SILO:
                 // If forced, accept looser tolerance and keep moving between silos
                 double angleErr = Math.abs(spindexer.getTelemetry().angleError);
-                if (angleErr < 0.75) {
-                    spindexer.sampleSensorsNow();
-                    state = State.SPIN_WAIT;
-                    timer.reset();
-                } else if (timer.seconds() > 1) { // watchdog
-                    spindexer.sampleSensorsNow();
-                    state = State.SPIN_WAIT;
-                    timer.reset();
+                if (timer.seconds() > 0.12) {
+                    if (angleErr < 2) {
+                        spindexer.sampleSensorsNow();
+                        state = State.SPIN_WAIT;
+                        timer.reset();
+                    } else if (timer.seconds() > 1.5) { // watchdog
+                        spindexer.sampleSensorsNow();
+                        state = State.SPIN_WAIT;
+                        timer.reset();
+                    }
                 }
                 break;
 
+
             case SPIN_WAIT:
-                if (timer.seconds() > 0.1) {
+                if (timer.seconds() > .25) {
                     state = State.SPIN_UP_SHOOTER;
                     timer.reset();
                 }
                 break;
 
             case SPIN_UP_SHOOTER:
-                if (shooter.getTelemetry().errorRPM < 35 || timer.seconds() > LIFTER_MOVE_TIMEOUT) {
-                    lifter.setUp();
-                    timer.reset();
-                    state = State.FIRE_LIFT_UP;
+                if (shooter.getTelemetry().errorRPM < 150) {
+                    if (timer.seconds() > .35) {
+                        lifter.setUp();
+                        timer.reset();
+                        state = State.FIRE_LIFT_UP;
+                    }
                 }
                 break;
 
             case FIRE_LIFT_UP:
                 if (lifter.isUp() || timer.seconds() > LIFTER_MOVE_TIMEOUT) {
-                    lifter.setDown();
-                    timer.reset();
-                    spindexer.setNeutral();
-                    state = State.FIRE_LIFT_DOWN;
+                    if (timer.seconds() > .2) {
+                        lifter.setDown();
+                        timer.reset();
+                        state = State.FIRE_LIFT_DOWN;
+                    }
                 }
                 break;
 

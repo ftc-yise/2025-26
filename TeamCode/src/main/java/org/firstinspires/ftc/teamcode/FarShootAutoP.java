@@ -6,13 +6,11 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.yise.DriveClass;
 import org.firstinspires.ftc.teamcode.yise.Hood;
 import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
-import org.firstinspires.ftc.teamcode.yise.Parameters;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
 import com.pedropathing.follower.Follower;
@@ -21,7 +19,6 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.BezierCurve;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.yise.*;
 
 /**
  * Pedro Segmented Auto — revised:
@@ -34,7 +31,7 @@ import org.firstinspires.ftc.teamcode.yise.*;
  * (ShooterClass, Spindexer, ShooterExecutionClass, Turret, Pedro follower).
  */
 @Autonomous(name = "Far Auto", group = "auto")
-public class FarShootAuto extends LinearOpMode {
+public class FarShootAutoP extends LinearOpMode {
 
     private Turret turret;
     private Spindexer spin;

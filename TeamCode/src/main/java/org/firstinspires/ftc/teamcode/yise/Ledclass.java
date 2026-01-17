@@ -21,6 +21,9 @@ public class Ledclass {
     public void setYellow() {
         setColor(0.338);
     }
+    public void setOff() {
+        setColor(0);
+    }
 
     public void setGreen() {
         setColor(0.5);

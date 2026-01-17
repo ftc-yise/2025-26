@@ -31,9 +31,9 @@ public class ShooterClass {
     // ======================================================
     // PIDF (REV VELOCITY CONTROLLER)
     // ======================================================
-    private double kP = 0.0032;
-    private double kI = 0.001;
-    private double kD = 0.0008;
+    private double kP = 0.0052;
+    private double kI = 0.00;
+    private double kD = 0.000;
     private double kF = BASE_F;
 
     // ======================================================
@@ -160,7 +160,7 @@ public class ShooterClass {
                 break;
 
             case IDLE:
-                targetRPM = 2000;
+                targetRPM = 3000;
                 break;
 
             case LOW:
@@ -190,7 +190,7 @@ public class ShooterClass {
 
         // Read velocity
         double velocityTicks = shooter.getVelocity();
-        currentRPM = ((velocityTicks * 60.0) / TICKS_PER_REV) * (1.125);
+        currentRPM = ((velocityTicks * 60.0) / TICKS_PER_REV) * (1.105);
         rpmError = targetRPM - currentRPM;
 
         // Spin-up profiling

@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.yise;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.Range;
 
@@ -30,16 +31,40 @@ public class Spindexer {
     private int[] lastSeenSiloBySensor = { -1, -1, -1 };
 
     // Unified PID gains (tune these at runtime)
-    private static final double kP = 0.0045;
-    private static final double MAX_POWER = 0.5;
-    private static final double MIN_POWER = 0.04;
-    private static final double DEADBAND = 1;
-    private static final double SLOW_ZONE = 6.0;
+    // --- PIDF Gains & helpers (replace old kP/MAX_POWER etc. if present) ---
+    // PID-ish tuning (CRServo-friendly)
+    private static final double kP = 0.0035;
+    private static final double kD = 0.0009;
+    private static final double kF = 0.015;
+
+    private static final double BRAKE_ZONE = 8.0;
+    private static final double BRAKE_GAIN = 0.45;
+    private static final double APPROACH_MAX_POWER = 0.12;
+
+    private final double ANGLE_FILTER_ALPHA = 0.18; // not 0.8
+    private final double VEL_FILTER_ALPHA = 0.22;
+
+    private static final double MAX_POWER = 0.28;
+    private static final double MIN_POWER = 0.04125;
+    private static final double DEADBAND = 0.5;
+    private static final double SLOW_ZONE = 2.0;
+
+    // filters and rate limiting
+    private double lastFilteredAngle = 0.0;
+    private double lastFilteredVelocity = 0.0;
+
+    // keep your existing power limits and deadband (tweakable)
 
 
-    public static double silo1 = 86.3;
-    public static double silo2 = 209.5;
-    public static double silo3 = 327.7;
+
+    // integrator anti-windup
+    private static final double INTEGRATOR_MAX = 0.18;
+
+    // integrator state
+    private double integrator = 0.0;
+    public static double silo1 = 352.8;
+    public static double silo2 = 232.5;
+    public static double silo3 = 113;
 
     public enum Mode {
         NEUTRAL,
@@ -90,11 +115,6 @@ public class Spindexer {
     // Constants
     private final double MAX_VOLTAGE = 3.3;
 
-    // Drift autocorrect timer
-    private long lastCorrectionTime = 0;
-    private final long CORRECTION_INTERVAL_MS = 2250;
-    private final double DRIFT_THRESHOLD = 7;
-
     // reading gate
     private boolean sensorUpdatesEnabled = true;
 
@@ -102,20 +122,16 @@ public class Spindexer {
     private double lastAngle = 0.0;            // last measured angle (deg)
     private long lastTimeMs = System.currentTimeMillis();
 
-    // Feedforward and output limiting (tune these)
-    private double kV = 0.0025;                // velocity -> power feedforward
-    private double maxOutput = 0.5;           // clamp output to safe range
-
     // Rate limiting (keeps power changes smooth)
     private double lastPower = 0;
-    private double MAX_DELTA = 0.04;
+    private double MAX_DELTA = 0.12;
 
     // Sequencing state
     private int siloStep = 0;
     private boolean sequenceActive = false;
 
     // Angle tolerance for various checks
-    private final double ANGLE_TOLERANCE = 4.0;
+    private final double ANGLE_TOLERANCE = 0.5;
 
     // ─────────────────────────────────────────────────────────────────────
     // TELEMETRY STRUCT
@@ -152,6 +168,7 @@ public class Spindexer {
         // init lastAngle so first velocity estimate is small
         double v = encoder.getVoltage();
         lastAngle = normalize((v / MAX_VOLTAGE) * 360.0);
+        lastFilteredAngle = lastAngle;     // <--- add this line
         lastTimeMs = System.currentTimeMillis();
     }
 
@@ -227,16 +244,14 @@ public class Spindexer {
         // controller error (target minus current)
         double angleError = smallestAngleError(targetAngleDeg, current);
 
-        // Choose base control mode (manual, neutral, or closed-loop)
-        double rawOutput = 0.0;
-
         double output = 0.0;
         if (mode == Mode.MANUAL) {
             output = manualPower;
         } else if (mode != Mode.NEUTRAL) {
             output = computeSpindexerPower(current, targetAngleDeg);
-        }
 
+        }
+        output = rateLimit(output);
         spindexer.setPower(output);
 
         // --- populate telemetry packet (unchanged structure) ---
@@ -246,9 +261,6 @@ public class Spindexer {
         t.targetAngle = targetAngleDeg;
         t.angleError = angleError;
         t.manualPower = manualPower;
-
-        t.pidP = kP * angleError;
-        t.pidI = 0.0;
         for (int i = 0; i < 3; i++) {
             t.siloColors[i] = silos[i];
         }
@@ -269,29 +281,19 @@ public class Spindexer {
 
     // --- UPDATE CONTROL ---
     private double computeSpindexerPower(double currentAngle, double targetAngle) {
-
         double error = smallestAngleError(targetAngle, currentAngle);
         double absError = Math.abs(error);
 
-        // Snap to zero when close enough
-        if (absError < DEADBAND) {
-            return 0.0;
-        }
+        if (absError < DEADBAND) return 0.0;
 
-        // Proportional control
         double power = kP * error;
 
-        // Slow down near target (hard damping, not PID)
-        if (absError < SLOW_ZONE) {
-            power *= absError / SLOW_ZONE;
-        }
+        if (absError < SLOW_ZONE) power *= (absError / SLOW_ZONE);
 
-        // Minimum power to overcome stiction
-        if (Math.abs(power) < MIN_POWER) {
+        if (Math.abs(power) > 0 && Math.abs(power) < MIN_POWER) {
             power = Math.signum(power) * MIN_POWER;
         }
 
-        // Final clamp
         return Range.clip(power, -MAX_POWER, MAX_POWER);
     }
 
@@ -306,15 +308,21 @@ public class Spindexer {
             // compute the world angle that this sensor is "looking at"
             double sensorAngle = normalize(currentAngle + SENSOR_OFFSETS[sensorIdx]);
 
-            // find nearest silo index for that angle
+            // find nearest silo index for that angle (with hysteresis fallback)
             int siloIndex = angleToSilo(sensorAngle);
+            if (siloIndex == -1) {
+                int prev = lastSeenSiloBySensor[sensorIdx];
+                if (prev != -1) {
+                    double prevErr = Math.abs(smallestAngleError(SILO_ANGLES[prev], sensorAngle));
+                    if (prevErr < ANGLE_TOLERANCE * 3.0) siloIndex = prev;
+                }
+            }
 
             if (siloIndex != -1) {
-                // update the silo slot with this sensor's reading
+                // **THIS IS THE IMPORTANT PART**: write the sensor reading into the silo slot
                 silos[siloIndex] = detectBall(s, sensorIdx);
                 lastSeenSiloBySensor[sensorIdx] = siloIndex;
             } else {
-                // sensor not pointing at any known silo right now
                 lastSeenSiloBySensor[sensorIdx] = -1;
             }
         }
@@ -366,8 +374,16 @@ public class Spindexer {
     }
 
     private boolean atTarget() {
-        return Math.abs(t.angleError) < ANGLE_TOLERANCE;
+        // use filtered angle and velocity to decide if we are truly at target
+        double voltage = encoder.getVoltage();
+        double rawCurrent = normalize((voltage / MAX_VOLTAGE) * 360.0);
+        // update filtered angle quickly (do not accumulate dt here — a single pass)
+        double filtered = lastFilteredAngle + ANGLE_FILTER_ALPHA * (rawCurrent - lastFilteredAngle);
+        double error = Math.abs(smallestAngleError(targetAngleDeg, filtered));
+        return (error < ANGLE_TOLERANCE) && (Math.abs(lastFilteredVelocity) < 7.0);
     }
+
+
 
     private double smallestAngleError(double target, double current) {
         double diff = target - current;

@@ -72,7 +72,6 @@ public class BallBotMainDrive extends LinearOpMode {
         Hood hood = new Hood(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
-        Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
@@ -80,6 +79,8 @@ public class BallBotMainDrive extends LinearOpMode {
         } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
             alliance = Turret.turretAlliance.BLUE;
         }
+
+        Turret turret = new Turret(hardwareMap, alliance, telemetry);
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
@@ -104,6 +105,13 @@ public class BallBotMainDrive extends LinearOpMode {
         runtime.reset();
 
         while (opModeIsActive()) {
+
+            if (Parameters.allianceColor == Parameters.Color.RED) {
+                alliance = Turret.turretAlliance.RED;
+            } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
+                alliance = Turret.turretAlliance.BLUE;
+            }
+
             // --- DRIVE & SPEED TOGGLE ---
             drive.handleSpeedToggle(gamepad1);
             drive.updateMotors(gamepad1, false);
@@ -129,19 +137,13 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad2.a) {
                 // start forced-fire if not already
                 shooter.update(false, false, true);    // shooter high goal
-                hood.setTarget(60);
+                hood.setTarget(40);
                 if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
                     autoShoot.startForcedCycle();
                 }
-                led1.setColor(0);
-                led2.setColor(0);
-                led3.setColor(0);
             } else if (gamepad2.x) {
                 shooter.update(false, true, false);    // shooter lower goal
                 hood.setTarget(15);
-                led1.setColor(0);
-                led2.setColor(0);
-                led3.setColor(0);
                 if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
                     autoShoot.startForcedCycle();
                 }
@@ -155,22 +157,22 @@ public class BallBotMainDrive extends LinearOpMode {
             autoShoot.update();
             //new will delete in a week or so
 
-            if (turret.getID() == 21 || turret.getID() == 24){
+            if ((turret.getID() == 20 || turret.getID() == 24) && !autoShoot.forceShooting){
                 led1.setBlue();
                 led2.setBlue();
                 led3.setBlue();
             } else {
-                led1.setColor(0);
-                led2.setColor(0);
-                led3.setColor(0);
+                led1.setOff();
+                led2.setOff();
+                led3.setOff();
             }
 
             // --- INTAKE & WALL WHEELS ---
             if (gamepad1.right_trigger > 0.75 && !shooting) {
-                intake.setPower(.7);
+                intake.setPower(1);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.25);
+                spin.setManual(.1);
             } else if (gamepad1.left_trigger > .75 && !shooting) {
                 intake.setPower(-.6);
                 walleft.setPower(1);
