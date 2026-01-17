@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -31,6 +32,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
  * (ShooterClass, Spindexer, ShooterExecutionClass, Turret, Pedro follower).
  */
 @Autonomous(name = "Far Auto", group = "auto")
+@Disabled
 public class FarShootAutoP extends LinearOpMode {
 
     private Turret turret;

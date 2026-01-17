@@ -3,8 +3,6 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.yise.DriveClass;
@@ -16,12 +14,8 @@ import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
-@Autonomous(name="Auto close Side Shoot", group="auto")
-public class CloseShootAuto extends LinearOpMode {
-
-    private DcMotor intake = null;
-    private CRServo walleft = null;
-    private CRServo wallright = null;
+@Autonomous(name="Auto Far Side Shoot", group="auto")
+public class FarShootAuto extends LinearOpMode {
 
     private ElapsedTime runtime = new ElapsedTime();
 
@@ -49,76 +43,56 @@ public class CloseShootAuto extends LinearOpMode {
             directioninalMulti = -1;
         }
 
-        walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
-        wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
-        wallright.setDirection(CRServo.Direction.REVERSE);
-
-
-        intake = hardwareMap.get(DcMotor.class, "intake");
-
         // Send telemetry message to signify robot waiting;
         telemetry.addData("Status", "Ready to run");    //
         telemetry.update();
         waitForStart();
         // Step through each leg of the path, ensuring that the OpMode has not been stopped along the way.
 
-        // Step 1:  Drive back for .8 seconds
+        sleep((long) (Parameters.WAIT * 1000));
+        // Step 1:  Drive forward for 3 seconds
         runtime.reset();
-        while (opModeIsActive() && (runtime.seconds() < .5)) {
-            shooter.update(false, true, false);    // shooter high goal
-            drive.setAutoPower(-1,-1,-1,-1);
-            telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
-            telemetry.update();
-        }
 
-        // Step 2:  strafe right for 1.3 seconds
-        runtime.reset();
-        while (opModeIsActive() && (runtime.seconds() < .75)) {
-            drive.setAutoPower(1 * directioninalMulti,-1 * directioninalMulti,-1 * directioninalMulti,1 * directioninalMulti);
-            telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
-            telemetry.update();
+        if (Parameters.allianceColor == Parameters.Color.RED) {
+            alliance = Turret.turretAlliance.RED;
+        } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
+            alliance = Turret.turretAlliance.BLUE;
         }
-        // Step 3: stop
-        drive.setAutoPower(0,0,0,0);
+        turret.autoMode();
 
-        //step 4: shoot
-        runtime.reset();
-        while (opModeIsActive() && (runtime.seconds() < 8)) {
+        while (opModeIsActive() && (runtime.seconds() < 10)) {
             turret.autoMode();
             turret.mode = Turret.turretMode.AUTO;
             // start forced-fire if not already
-            shooter.update(false, true, false);    // shooter high goal
-            hood.setTarget(0);
-            if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                autoShoot.startForcedCycle();
+            shooter.update(false, false, true);    // shooter high goal
+            if (runtime.seconds() > 3) {
+                hood.setTarget(0);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+                autoShoot.update();
+                spin.sampleSensorsNow();
+                spin.update();
+                hood.update();
+                autoShoot.update();
+                turret.autoMode();
             }
-            autoShoot.update();
-            spin.sampleSensorsNow();
-            spin.update();
-            hood.update();
-            autoShoot.update();
         }
 
-        // Step 5:  strafe right for 1.3 seconds
+        // Step 2:  Spin right for 1.3 seconds
         runtime.reset();
         while (opModeIsActive() && (runtime.seconds() < .8)) {
-            drive.setAutoPower(1 * directioninalMulti,-1 * directioninalMulti,-1 * directioninalMulti,1 * directioninalMulti);
+            if (Parameters.allianceColor == Parameters.Color.RED) {
+                drive.setAutoPower(1, 0, 0, 1);
+            }else {
+                drive.setAutoPower(-0, 1, 1, -0);
+            }
             telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
             telemetry.update();
         }
-        // Step 6: stop
+        // Step 4:  Stop
         drive.setAutoPower(0,0,0,0);
 
-        runtime.reset();
-        while (opModeIsActive() && (runtime.seconds() < 1)) {
-            intake.setPower(.6);
-            walleft.setPower(1);
-            wallright.setPower(1);
-            spin.setManual(.1);
-            drive.setAutoPower(1,1,1,1);
-            telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
-            telemetry.update();
-        }
 
         telemetry.addData("Path", "Complete");
         telemetry.update();

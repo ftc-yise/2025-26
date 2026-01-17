@@ -60,6 +60,7 @@ public class BallBotMainDrive extends LinearOpMode {
     private PrintWriter logWriter = null;
     private String logFilePath = null;
     private double logInterval = 0.05;
+    public double time = runtime.seconds();
 
     boolean firstRun = true;
     Turret.turretAlliance alliance = Turret.turretAlliance.RED;
@@ -105,6 +106,7 @@ public class BallBotMainDrive extends LinearOpMode {
         runtime.reset();
 
         while (opModeIsActive()) {
+            time = runtime.seconds();
 
             if (Parameters.allianceColor == Parameters.Color.RED) {
                 alliance = Turret.turretAlliance.RED;
@@ -161,10 +163,11 @@ public class BallBotMainDrive extends LinearOpMode {
                 led1.setBlue();
                 led2.setBlue();
                 led3.setBlue();
-            } else {
+            } else if (time > 1) {
                 led1.setOff();
                 led2.setOff();
                 led3.setOff();
+                runtime.reset();
             }
 
             // --- INTAKE & WALL WHEELS ---

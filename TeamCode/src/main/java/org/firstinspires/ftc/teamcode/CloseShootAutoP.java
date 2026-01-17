@@ -6,6 +6,7 @@ import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.draw;
 import com.bylazar.configurables.annotations.IgnoreConfigurable;
 import com.bylazar.telemetry.TelemetryManager;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -24,8 +25,8 @@ import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
 @Autonomous(name = "CloseShootAuto", group = "auto")
+@Disabled
 public class CloseShootAutoP extends LinearOpMode {
-
     @IgnoreConfigurable
     static TelemetryManager telemetryM;
     // subsystems

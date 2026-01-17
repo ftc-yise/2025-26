@@ -140,7 +140,7 @@ public class ShooterExecutionClass {
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
-                    } else if (timer.seconds() > 1.5) { // watchdog
+                    } else if (timer.seconds() > 1.3) { // watchdog
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();

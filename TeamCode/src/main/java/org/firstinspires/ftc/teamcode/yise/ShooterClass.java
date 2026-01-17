@@ -168,7 +168,7 @@ public class ShooterClass {
                 break;
 
             case FULL:
-                targetRPM = 4000;
+                targetRPM = 4350;
                 break;
         }
 
