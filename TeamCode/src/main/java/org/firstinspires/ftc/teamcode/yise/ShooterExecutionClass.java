@@ -1,229 +1,242 @@
 package org.firstinspires.ftc.teamcode.yise;
 
-import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+/**
+ * ShooterExecutionClass
+ *
+ * Handles:
+ *  - Pattern-based shooting (3-ball pattern repeated up to 9)
+ *  - Fastest fallback shooting if pattern breaks
+ *  - Shot logging (9 slots)
+ *  - Safe recovery if wrong ball is inserted
+ */
 public class ShooterExecutionClass {
 
-    public enum State {
-        JITTER,
+    // ─────────────────────────────────────────────
+    // SUBSYSTEMS
+    // ─────────────────────────────────────────────
+    private final Spindexer spindexer;
+    private final ShooterClass shooter;
+    private final lifter lifter;
+
+    // ─────────────────────────────────────────────
+    // STATE MACHINE
+    // ─────────────────────────────────────────────
+    private enum State {
         IDLE,
-        MOVE_TO_SILO,
-        SPIN_WAIT,
-        SPIN_UP_SHOOTER,
-        FIRE_LIFT_UP,
-        FIRE_LIFT_DOWN,
-        NEXT_SILO,
-        COMPLETE
+        SELECT_SILO,
+        WAIT_FOR_RPM,
+        LIFT,
+        FEED,
+        RESET
     }
 
     private State state = State.IDLE;
-    private Servo lift;
-    private final Spindexer spindexer;
-    private final ShooterClass shooter;
     private final ElapsedTime timer = new ElapsedTime();
 
-    private int shotsFired = 0;
-    private int totalShots = 0;        // dynamically computed at cycle start
-    public int currentSiloIndex = -1; // currently active silo
-    public boolean jittered = false;
+    // ─────────────────────────────────────────────
+    // PATTERN + LOGGING
+    // ─────────────────────────────────────────────
+    private final int[] shotLog = new int[9];
+    private int shotCount = 0;
 
-    private final double LIFT_UP = 0.75;
-    private final double LIFT_DOWN = 0.00;
+    private int[] pattern = null;   // length = 3
+    private int patternIndex = 0;
+    private boolean usePattern = false;
 
-    // --- Placeholder for future pattern logic ---
-    // You could add an array of integers, or a list of Silo/BallColor targets
-    // and iterate through them here. For now, we leave it null.
-    // Example:
-    // private int[] pattern = null;
+    private int currentSilo = -1;
 
-    public ShooterExecutionClass(Spindexer spin, ShooterClass shooter, HardwareMap hardwareMap) {
-        this.spindexer = spin;
+    // ─────────────────────────────────────────────
+    // TIMING CONSTANTS
+    // ─────────────────────────────────────────────
+    private static final double RPM_TIMEOUT = 0.8;
+    private static final double FEED_TIME   = 0.25;
+    private static final double RESET_TIME  = 0.2;
+
+    // ─────────────────────────────────────────────
+    // CONSTRUCTOR
+    // ─────────────────────────────────────────────
+    public ShooterExecutionClass(
+            Spindexer spindexer,
+            ShooterClass shooter,
+            lifter lifter
+    ) {
+        this.spindexer = spindexer;
         this.shooter = shooter;
-        lift = hardwareMap.get(Servo.class, "lift");
+        this.lifter = lifter;
+
+        lifter.setPresetPositions(0.0, 1.0);
+        lifter.setCalibration(0.7, 0, 1.6, 1);
+
+        clearShotLog();
     }
 
-    // ---------------- START CYCLE ----------------
+    // ─────────────────────────────────────────────
+    // PATTERN API
+    // ─────────────────────────────────────────────
+
+    /**
+     * Pattern must be length 3.
+     * Example: {0,1,2}
+     */
+    public void setPattern(int[] pattern) {
+        if (pattern == null || pattern.length != 3) {
+            this.pattern = null;
+            usePattern = false;
+            return;
+        }
+
+        this.pattern = pattern.clone();
+        this.patternIndex = 0;
+        this.usePattern = true;
+    }
+
+    public void clearShotLog() {
+        for (int i = 0; i < shotLog.length; i++) {
+            shotLog[i] = -1;
+        }
+        shotCount = 0;
+        patternIndex = 0;
+    }
+
+    public int[] getShotLog() {
+        return shotLog.clone();
+    }
+
+    // ─────────────────────────────────────────────
+    // CONTROL
+    // ─────────────────────────────────────────────
     public void startCycle() {
         if (state != State.IDLE) return;
 
-        // Compute which silos actually have balls
-        spindexer.disableSensorUpdates(); //
-        totalShots = 0;
-        Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
-        for (Spindexer.BallColor color : colors) {
-            if (color != Spindexer.BallColor.NONE) totalShots++;
-        }
-
-
-        // inside startCycle() after computing totalShots:
-        if (totalShots == 0) {
-            // If we've never jittered this activation, do a short jitter to settle balls.
-            if (!jittered) {
-                jittered = true;
-                // disable sensor updates while we're jittering to avoid false reads
-                spindexer.disableSensorUpdates();
-                // reset the timer so the JITTER timing is reliable
-                timer.reset();
-                // enter jitter state
-                state = State.JITTER;
-            } else {
-                // we already jittered — nothing to do, re-enable sensors and go idle
-                spindexer.enableSensorUpdates();
-                state = State.IDLE;
-            }
-            return;
-        }
-        // nothing to do
-
-
-        shotsFired = 0;
-        state = State.MOVE_TO_SILO;
-
-        // Move to first non-empty silo
-        moveToNextFullSilo();
-        timer.reset();
-    }
-
-    // ---------------- UPDATE LOOP ----------------
-    public void update() {
-
-        switch (state) {
-            case JITTER:
-                // deterministic 240ms two-pulse jitter: forward 0.12s, reverse 0.12s, stop
-                double t = timer.seconds();
-                if (t < 0.1) {
-                    // small forward pulse — tune amplitude if needed (0.4 is a good start)
-                    spindexer.setManual(0.2);
-                } else if (t < 0.2) {
-                    // short reverse pulse
-                    spindexer.setManual(-0.2);
-                } else {
-                    // finish jitter: stop motor, re-enable sensing, clear timers and go idle
-                    spindexer.setManual(0.0);
-                    spindexer.enableSensorUpdates();
-                    timer.reset();
-                    spindexer.goToSilo1();
-                    state = State.COMPLETE;
-                }
-                return;
-
-
-            case IDLE:
-                shooter.update(false, false, false);
-                return;
-
-            case MOVE_TO_SILO:
-                if (Math.abs(spindexer.getTelemetry().angleError) < 1.5) { // loosen tolerance
-                    spindexer.sampleSensorsNow();
-                    state = State.SPIN_WAIT;
-                    timer.reset();
-                } else if (timer.seconds() > 1.0) { // ⏱ watchdog
-                    spindexer.sampleSensorsNow();
-                    state = State.SPIN_WAIT;
-                    timer.reset();
-                }
-                break;
-
-
-            case SPIN_WAIT:
-                if (timer.seconds() > 0.8) {
-                    state = State.SPIN_UP_SHOOTER;
-                    timer.reset();
-                }
-                break;
-
-            case SPIN_UP_SHOOTER:
-                if (timer.seconds() > 1.0) { // give shooter time to spin up
-                    lift.setPosition(Servo.MAX_POSITION);
-                    timer.reset();
-                    state = State.FIRE_LIFT_UP;
-                }
-                break;
-
-            case FIRE_LIFT_UP:
-                if (timer.seconds() > 0.45) {
-                    lift.setPosition(Servo.MIN_POSITION);
-                    timer.reset();
-                    state = State.FIRE_LIFT_DOWN;
-                }
-                break;
-
-            case FIRE_LIFT_DOWN:
-                if (timer.seconds() > 0.45) {
-                    shotsFired++;
-
-                    // Clear the fired silo
-                    if (currentSiloIndex != -1) {
-                        spindexer.clearSilo(currentSiloIndex);
-                    }
-
-                    if (shotsFired >= totalShots) {
-                        state = State.COMPLETE;
-                    } else {
-                        state = State.NEXT_SILO;
-                    }
-                }
-                break;
-
-            case NEXT_SILO:
-                moveToNextFullSilo();
-                timer.reset();
-                state = State.MOVE_TO_SILO;
-                break;
-
-            case COMPLETE:
-                spindexer.enableSensorUpdates();
-                spindexer.sampleSensorsNow();
-                state = State.IDLE;
-                break;
-
-        }
-    }
-
-    // ---------------- HELPER: Move to next non-empty silo ----------------
-    private void moveToNextFullSilo() {
         spindexer.sampleSensorsNow();
-        Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
-        int nextIndex = (currentSiloIndex + 1) % 3;
-
-        // Find the next silo with a ball
-        for (int i = 0; i < 3; i++) {
-            int idx = (nextIndex + i) % 3;
-            if (colors[idx] != Spindexer.BallColor.NONE) {
-                currentSiloIndex = idx;
-
-                // Move spindexer to that silo
-                switch (idx) {
-                    case 0: spindexer.goToSilo1(); break;
-                    case 1: spindexer.goToSilo2(); break;
-                    case 2: spindexer.goToSilo3(); break;
-                }
-
-                // --- PLACEHOLDER FOR FUTURE PATTERN LOGIC ---
-                // Example: if you want to skip certain silos, or follow a pre-defined order,
-                // you can check your pattern array here and override the currentSiloIndex.
-
-                return;
-            }
-        }
-
-        // If none found (should not happen), stay idle
-        currentSiloIndex = -1;
-        state = State.COMPLETE;
+        timer.reset();
+        state = State.SELECT_SILO;
     }
 
-
-    // ---------------- IS BUSY ----------------
     public boolean isBusy() {
         return state != State.IDLE;
     }
-    // -------------------------------------------------------------
-    //  HELPER — Move to next silo in order 1→2→3→1
-    // -------------------------------------------------------------
-    public void setLift(){
-        lift.setPosition(1);
+
+    // ─────────────────────────────────────────────
+    // MAIN UPDATE LOOP
+    // ─────────────────────────────────────────────
+    public void update() {
+
+        switch (state) {
+
+            case IDLE:
+                shooter.update(false,false,false);
+                return;
+
+            // ─────────────────────────────────────
+            case SELECT_SILO:
+                currentSilo = chooseNextSilo();
+
+                if (currentSilo == -1) {
+                    state = State.IDLE;
+                    return;
+                }
+
+                spindexer.goToSilo(currentSilo);
+                timer.reset();
+                state = State.WAIT_FOR_RPM;
+                break;
+
+            // ─────────────────────────────────────
+            case WAIT_FOR_RPM:
+                lifter.setDown();
+                spindexer.disableSensorUpdates();
+
+                if (shooter.getTelemetry().readyLoose ||
+                        timer.seconds() > RPM_TIMEOUT) {
+
+                    lifter.setUp();
+                    timer.reset();
+                    state = State.LIFT;
+                }
+                break;
+
+            // ─────────────────────────────────────
+            case LIFT:
+                if (lifter.getTelemetry().position > 0.85 ||
+                        timer.seconds() > 0.35) {
+
+                    spindexer.enableSensorUpdates();
+                    spindexer.setManual(0.15);
+                    timer.reset();
+                    state = State.FEED;
+                }
+                break;
+
+            // ─────────────────────────────────────
+            case FEED:
+                if (timer.seconds() > FEED_TIME) {
+
+                    spindexer.stop();
+                    lifter.setDown();
+
+                    logShot(currentSilo);
+                    spindexer.clearSilo(currentSilo);
+
+                    timer.reset();
+                    state = State.RESET;
+                }
+                break;
+
+            // ─────────────────────────────────────
+            case RESET:
+                if (lifter.isDown() && timer.seconds() > RESET_TIME) {
+                    state = State.SELECT_SILO;
+                }
+                break;
+        }
     }
 
+    // ─────────────────────────────────────────────
+    // SILO SELECTION LOGIC
+    // ─────────────────────────────────────────────
+    private int chooseNextSilo() {
+
+        spindexer.sampleSensorsNow();
+        Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
+
+        // Disable pattern permanently after 9 shots
+        if (shotCount >= 9) {
+            usePattern = false;
+        }
+
+        // ───── Pattern path ─────
+        if (usePattern && pattern != null) {
+            int desired = pattern[patternIndex % 3];
+
+            if (colors[desired] != Spindexer.BallColor.NONE) {
+                patternIndex++;
+                return desired;
+            }
+
+            // Pattern broken → fallback
+            usePattern = false;
+        }
+
+        // ───── Fastest fallback ─────
+        for (int i = 0; i < 3; i++) {
+            if (colors[i] != Spindexer.BallColor.NONE) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    // ─────────────────────────────────────────────
+    // LOGGING
+    // ─────────────────────────────────────────────
+    private void logShot(int siloIndex) {
+        if (shotCount < shotLog.length) {
+            shotLog[shotCount] = siloIndex;
+        }
+        shotCount++;
+    }
 }

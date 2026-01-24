@@ -76,8 +76,6 @@ public class BallBotMainDrive extends LinearOpMode {
         ShotPatternManager patternMgr = new ShotPatternManager();
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
 
-        spin.initSilos(Parameters.spinLocation);
-
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
         } else if (Parameters.allianceColor == Parameters.Color.BLUE) {
