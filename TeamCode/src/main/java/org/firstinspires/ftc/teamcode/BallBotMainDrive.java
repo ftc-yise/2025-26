@@ -9,6 +9,7 @@ import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.Parameters;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 import org.firstinspires.ftc.teamcode.yise.Ledclass;
+import org.firstinspires.ftc.teamcode.yise.ShotPatternManager;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -72,8 +73,10 @@ public class BallBotMainDrive extends LinearOpMode {
         Spindexer spin = new Spindexer(hardwareMap);
         Hood hood = new Hood(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        ShotPatternManager patternMgr = new ShotPatternManager();
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
 
+        spin.initSilos(Parameters.spinLocation);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
@@ -119,7 +122,7 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
-            /*if (gamepad2.a && !autoShoot.isBusy()) {
+            if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
                 hood.setTarget(60); // e.g. 42.0
                 autoShoot.startCycle();
@@ -132,34 +135,9 @@ public class BallBotMainDrive extends LinearOpMode {
                 shooting = true;
                 //spin.goToSilo2();
             }
-            autoShoot.update();*/
-            //old will re used after comp. This is our color recognition
-
-            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
-            if (gamepad2.a) {
-                // start forced-fire if not already
-                shooter.update(false, false, true);    // shooter high goal
-                hood.setTarget(40);
-                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                    autoShoot.startForcedCycle();
-                }
-            } else if (gamepad2.x) {
-                shooter.update(false, true, false);    // shooter lower goal
-                hood.setTarget(15);
-                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                    autoShoot.startForcedCycle();
-                }
-            } else {
-                // if neither held, and we're in forced-mode, stop forced mode
-                if (autoShoot.forceShooting) {
-                    autoShoot.stopForcedCycle();
-                }
-                // normal idle behavior handled elsewhere
-            }
             autoShoot.update();
-            //new will delete in a week or so
 
-            if ((turret.getID() == 20 || turret.getID() == 24) && !autoShoot.forceShooting){
+            if ((turret.getID() == 20 || turret.getID() == 24)){
                 led1.setBlue();
                 led2.setBlue();
                 led3.setBlue();
@@ -192,10 +170,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 wallright.setPower(0);
                 if (!autoShoot.isBusy()) {
                     spin.setNeutral();
-                    if (!gamepad2.x && !gamepad2.a) {
-                        autoShoot.jittered = false;
                         shooting = false;
-                    }
                 }
             }
 
@@ -323,43 +298,47 @@ public class BallBotMainDrive extends LinearOpMode {
             }
 
 
-            // START+BACK -> start logging
-            if (gamepad1.start && gamepad1.back && logWriter != null) {
+            if (logWriter == null) {
                 try {
                     File dir = new File("/sdcard/FIRST");
                     if (!dir.exists()) dir.mkdirs();
-                    logFilePath = "/sdcard/FIRST/field_only_log_" + System.currentTimeMillis() + ".csv";
-                    logWriter = new PrintWriter(new FileWriter(new File(logFilePath), true));
-                    logWriter.println("time_s,input_x,input_y,input_turn,trans_x,trans_y,rotation_cmd,lf,rf,lb,rb,pose_x,pose_y,pose_h,total_power");
+
+                    logFilePath = "/sdcard/FIRST/telemetry_" + System.currentTimeMillis() + ".csv";
+                    logWriter = new PrintWriter(new FileWriter(logFilePath));
+
+                    logWriter.println(
+                            "time_s," +
+                                    "input_x,input_y,input_turn," +
+                                    "trans_x,trans_y,rotation_cmd," +
+                                    "lf,rf,lb,rb,total_power," +
+                                    "pose_x,pose_y,pose_h," +
+                                    "spx_mode,spx_currentAngle,spx_targetAngle,spx_error,spx_appliedPower," +
+                                    "silo1,silo2,silo3"
+                    );
+
                     logWriter.flush();
-                    telemetry.addData("Log", "started: " + logFilePath);
+                    logTimer.reset();
+
+                    telemetry.addData("LOG", "Started");
+                    telemetry.addData("File", logFilePath);
                     telemetry.update();
+
+                    sleep(300); // debounce
                 } catch (IOException e) {
-                    telemetry.addData("Log Error", e.getMessage());
+                    telemetry.addData("LOG ERROR", e.getMessage());
                     telemetry.update();
                 }
             }
 
-            //telemetry getter
-            DriveClass.DriveTelemetry d = drive.getDriveTelemetry();
 
-            // logging
-            if (logWriter != null && logTimer.seconds() >= logInterval) {
-                double now = runtime.seconds();
-                double totalPower = Math.abs(d.lf) + Math.abs(d.rf) + Math.abs(d.lb) + Math.abs(d.rb);
-                logWriter.printf("%.3f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f%n",
-                        now, d.rawX, d.rawY, d.rawTurn, d.tx_field, d.ty_field, d.rotationCmd,
-                        d.lf, d.rf, d.lb, d.rb, d.pose.x, d.pose.y, d.pose.h, totalPower);
-                logWriter.flush();
-                logTimer.reset();
+            if (gamepad1.a) {
+                patternMgr.clear();
             }
 
+            //telemetry getter
+            DriveClass.DriveTelemetry d = drive.getDriveTelemetry();
             // --- Update spindexer & autoShoot ---
-            spin.sampleSensorsNow();
-            spin.update();
             hood.update();
-            autoShoot.update();
-            Spindexer.TelemetryPacket spina = spin.getTelemetry();
             Hood.TelemetryPacket H = hood.getTelemetry();
             lifter.TelemetryPacket l = lifter.getTelemetry();
 
@@ -387,6 +366,9 @@ public class BallBotMainDrive extends LinearOpMode {
 
 // SPINDEXER
             telemetry.addLine("=== SPINDEXER ===");
+            spin.sampleSensorsNow();
+            spin.update();             // 2️⃣ process logic
+            Spindexer.TelemetryPacket spina = spin.getTelemetry(); // 3️⃣ snapshot
             telemetry.addData("Mode", spina.mode);
             telemetry.addData("Voltage", "%.3f", spina.voltage);
             telemetry.addData("Angle", "%.1f°", spina.currentAngle);
@@ -443,16 +425,57 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Power", "%.2f", H.appliedPower);
             telemetry.update();
 
+            if (logWriter != null && logTimer.seconds() >= 0.1) {
+
+                double now = runtime.seconds();
+
+                Spindexer.TelemetryPacket spx = spin.getTelemetry();
+
+                double totalPower =
+                        Math.abs(d.lf) + Math.abs(d.rf) +
+                                Math.abs(d.lb) + Math.abs(d.rb);
+
+                logWriter.printf(
+                        "%.3f," +
+                                "%.4f,%.4f,%.4f," +
+                                "%.4f,%.4f,%.4f," +
+                                "%.4f,%.4f,%.4f,%.4f,%.4f," +
+                                "%.4f,%.4f,%.4f," +
+                                "%s,%.2f,%.2f,%.2f,%.3f," +
+                                "%s,%s,%s%n",
+
+                        now,
+                        d.rawX, d.rawY, d.rawTurn,
+                        d.tx_field, d.ty_field, d.rotationCmd,
+                        d.lf, d.rf, d.lb, d.rb, totalPower,
+                        d.pose.x, d.pose.y, d.pose.h,
+                        spx.mode,
+                        spx.currentAngle,
+                        spx.targetAngle,
+                        spx.angleError,
+                        spx.appliedPower,
+                        spx.siloColors[0],
+                        spx.siloColors[1],
+                        spx.siloColors[2]
+                );
+
+                logWriter.flush();
+                logTimer.reset();
+            }
+
+
         } // end while opModeIsActive
 
-        // cleanup
-        drive.stopAllMotors();
         if (logWriter != null) {
             logWriter.flush();
             logWriter.close();
-            telemetry.addData("Log Saved", logFilePath);
+            telemetry.addData("LOG", "Saved");
+            telemetry.addData("File", logFilePath);
             telemetry.update();
         }
+
+
+
     }
 
 }

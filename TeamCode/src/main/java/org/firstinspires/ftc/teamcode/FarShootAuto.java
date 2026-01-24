@@ -39,7 +39,7 @@ public class FarShootAuto extends LinearOpMode {
         Spindexer spin = new Spindexer(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
         Hood hood = new Hood(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
         Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
@@ -83,16 +83,14 @@ public class FarShootAuto extends LinearOpMode {
         }
         turret.autoMode();
         runtime.reset();
-        while (opModeIsActive() && ((runtime.seconds() < 8))) {
+        while (opModeIsActive() && ((runtime.seconds() < 12))) {
             turret.autoMode();
             turret.mode = Turret.turretMode.AUTO;
             // start forced-fire if not already
             shooter.update(false, false, true);    // shooter high goal
             if (runtime.seconds() > 3) {
                 hood.setTarget(0);
-                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                    autoShoot.startForcedCycle();
-                }
+
                 autoShoot.update();
                 spin.sampleSensorsNow();
                 spin.update();
@@ -105,7 +103,6 @@ public class FarShootAuto extends LinearOpMode {
         // Step 2:  Spin right for 1.3 seconds
         runtime.reset();
         while (opModeIsActive() && (runtime.seconds() < 1.1)) {
-            spin.goToSilo1();
             lifter.setDown();
             if (Parameters.allianceColor == Parameters.Color.BLUE) {
                 drive.setAutoPower(1, 0, 0, 1);
@@ -127,6 +124,7 @@ public class FarShootAuto extends LinearOpMode {
             drive.setAutoPower(.51, .51, .51, .51);
             telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
             telemetry.update();
+            shooter.update(false, false, false);    // shooter high goal
         }
 
             runtime.reset();
@@ -141,14 +139,11 @@ public class FarShootAuto extends LinearOpMode {
         // Step 2:  Spin right for 1.3 seconds
         runtime.reset();
         while (opModeIsActive() && (runtime.seconds() < .7)) {
-            spin.goToSilo1();
             intake.setPower(0);
-            walleft.setPower(0);
-            wallright.setPower(0);
             if (Parameters.allianceColor == Parameters.Color.BLUE) {
                 drive.setAutoPower(1, 0, 0, 1);
             }else {
-                drive.setAutoPower(-0, -1, -1, -0);
+                drive.setAutoPower(-0, -.8, -.8, -0);
             }
             telemetry.addData("Path", "Leg 2: %4.1f S Elapsed", runtime.seconds());
             telemetry.update();
@@ -158,24 +153,19 @@ public class FarShootAuto extends LinearOpMode {
 
         runtime.reset();
 
-        while (opModeIsActive() && (runtime.seconds() < 8)) {
+        while (opModeIsActive() && (runtime.seconds() < 9)) {
             turret.autoMode();
             turret.mode = Turret.turretMode.AUTO;
-            spin.setNeutral();
+            //spin.setNeutral();
             // start forced-fire if not already
             shooter.update(false, false, true);    // shooter high goal
-            if (runtime.seconds() > 3) {
                 hood.setTarget(0);
-                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                    autoShoot.startForcedCycle();
-                }
                 autoShoot.update();
                 spin.sampleSensorsNow();
                 spin.update();
                 hood.update();
                 autoShoot.update();
                 turret.autoMode();
-            }
         }
 
         //step 4: shoot
@@ -185,6 +175,7 @@ public class FarShootAuto extends LinearOpMode {
                 spin.goToSilo1();
             } else {
                 lifter.setDown();
+                drive.setAutoPower(.51, .51, .51, .51);
             }
 
         }

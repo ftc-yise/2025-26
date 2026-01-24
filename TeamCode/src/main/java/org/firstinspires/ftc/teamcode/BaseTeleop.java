@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -11,6 +12,7 @@ import org.firstinspires.ftc.teamcode.yise.DriveClass;
 public class BaseTeleop extends LinearOpMode {
     private ElapsedTime runtime = new ElapsedTime();
     private DcMotor intake = null;
+    private ColorSensor floor = null;
     private DcMotor leftFrontDrive = null;
     private DcMotor leftBackDrive = null;
     private DcMotor rightFrontDrive = null;
@@ -20,6 +22,7 @@ public class BaseTeleop extends LinearOpMode {
         DriveClass drive = new DriveClass(hardwareMap);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
+        floor = hardwareMap.get(ColorSensor.class, "floor");
 
         leftFrontDrive = hardwareMap.get(DcMotor.class, "LeftFrontDrive");
         leftBackDrive = hardwareMap.get(DcMotor.class, "LeftBackDrive");
@@ -83,6 +86,9 @@ public class BaseTeleop extends LinearOpMode {
                 rightFrontDrive.setPower(0);
                 telemetry.addLine("=== nuthin ===");
             }
+            telemetry.addData("red", floor.red());
+            telemetry.addData("blue", floor.blue());
+            telemetry.addData("green", floor.green());
             telemetry.update();
         }
         }

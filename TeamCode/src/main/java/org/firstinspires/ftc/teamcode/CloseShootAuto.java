@@ -38,7 +38,7 @@ public class CloseShootAuto extends LinearOpMode {
         Spindexer spin = new Spindexer(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
         Hood hood = new Hood(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
         Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
@@ -91,9 +91,6 @@ public class CloseShootAuto extends LinearOpMode {
             // start forced-fire if not already
             shooter.update(false, true, false);    // shooter high goal
             hood.setTarget(0);
-            if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                autoShoot.startForcedCycle();
-            }
             autoShoot.update();
             spin.sampleSensorsNow();
             spin.update();
@@ -171,9 +168,7 @@ public class CloseShootAuto extends LinearOpMode {
                 shooter.update(false, true, false);    // shooter high goal
                 if (runtime.seconds() > 1.3) {
                     hood.setTarget(0);
-                    if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
-                        autoShoot.startForcedCycle();
-                    }
+
                     autoShoot.update();
                     spin.sampleSensorsNow();
                     spin.update();

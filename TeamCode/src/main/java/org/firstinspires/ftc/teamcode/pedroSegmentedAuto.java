@@ -77,7 +77,7 @@ public class pedroSegmentedAuto extends LinearOpMode {
         this.spin = new Spindexer(hardwareMap);
         this.hood = new Hood(hardwareMap);
         this.lifter = new lifter(hardwareMap);
-        this.autoShoot = new ShooterExecutionClass(this.spin, this.shooter, hardwareMap, this.lifter);
+        this.autoShoot = new ShooterExecutionClass(this.spin, this.shooter, this.lifter);
         this.turret = new Turret(hardwareMap, alliance, telemetry);
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");

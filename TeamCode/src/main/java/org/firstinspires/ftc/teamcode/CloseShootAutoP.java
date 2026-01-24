@@ -64,7 +64,7 @@ public class CloseShootAutoP extends LinearOpMode {
         hood = new Hood(hardwareMap);
         lifter = new lifter(hardwareMap);
         turret = new Turret(hardwareMap, Turret.turretAlliance.BLUE, telemetry);
-        exec = new ShooterExecutionClass(spindexer, shooter, hardwareMap, lifter);
+        exec = new ShooterExecutionClass(spindexer, shooter, lifter);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
         follower = Constants.createFollower(hardwareMap);
