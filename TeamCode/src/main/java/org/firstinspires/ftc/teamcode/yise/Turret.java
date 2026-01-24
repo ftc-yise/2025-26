@@ -27,10 +27,10 @@ public class Turret {
     // --- PID CONTROL CONSTANTS  ---
 
     // --- PIDF CONTROL CONSTANTS ---
-    public static double kP = 0.023;
+    public static double kP = 0.018;
     public static double kI = 0.001;
     public static double kD = 0.0065;
-    public static double kF = 0.17;   // static friction feedforward
+    public static double kF = 0.14;   // static friction feedforward
 
     public static double AUTO_MAX_POWER = 0.5;
     public static double TARGET_TOLERANCE_DEG = 1.5;
@@ -58,6 +58,7 @@ public class Turret {
     // --- CLASS VARIABLES ---
     LLResult result = null;
     public double turretPower = 0.0;
+    public double pose = 0.0;
     public double myTx = 0.0;
     public Limelight3A limelight;
     public DigitalChannel limit; // Digital device for limit switch instead of push sensor because I get more advanced control
@@ -125,6 +126,8 @@ public class Turret {
     }
 
     public void manualMode(turretDirection direction) {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         mode = turretMode.MANUAL;
         double p = 0;
         switch (direction) {
@@ -142,6 +145,8 @@ public class Turret {
     }
 
     public void manualControl(double power) {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         mode = turretMode.MANUAL;
 
         // --- POWER CURVE MATH STUFF ---
@@ -154,6 +159,11 @@ public class Turret {
 
         turretPower = applySafety(finalPower);
         turret.setPower(turretPower);
+    }
+
+    public void runto(int x){
+        turret.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        turret.setTargetPosition(x);
     }
 
     public void autoModeStatic() {
@@ -173,6 +183,8 @@ public class Turret {
     }
 
     public void autoMode() {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         mode = turretMode.AUTO;
         result = limelight.getLatestResult();
         if (!result.isValid()) {
@@ -203,6 +215,8 @@ public class Turret {
     }
 
     public void stop() {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         turret.setPower(0);
     }
 
@@ -241,6 +255,8 @@ public class Turret {
     }
 
     private double calculatePIDF(double error) {
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         double lastEncoderPos = turret.getCurrentPosition();
 
 
@@ -374,6 +390,11 @@ public class Turret {
         lastError = 0.0;
         integralSum = 0.0;
         lastTime = System.currentTimeMillis();
+    }
+
+    public double getPose() {
+        pose = turret.getCurrentPosition();
+        return pose;
     }
     private void resetVelocityTracking() {
         lastEncoderPos = turret.getCurrentPosition();

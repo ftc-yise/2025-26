@@ -2,24 +2,32 @@ package org.firstinspires.ftc.teamcode.yise;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import org.firstinspires.ftc.teamcode.yise.Spindexer;
 
 
 @TeleOp(name="Game Values (RUN THIS EVERY MATCH)", group="Necessity")
 public class Parameters extends LinearOpMode {
-
     public enum Color {
         RED,
         BLUE
     }
+    public enum Upacreek {
+        YES,
+        NO
+    }
+
+    public static double spinLocation;
 
 
     public static Color allianceColor;
+    public static Upacreek upacreek;
 
     public static double WAIT;
     public boolean xReleased;
 
     @Override
     public void runOpMode() {
+        Spindexer spin = new Spindexer(hardwareMap);
 
         while (!gamepad1.a && !gamepad1.b) {
             telemetry.addLine("Alliance Color \n");
@@ -37,7 +45,7 @@ public class Parameters extends LinearOpMode {
                 //WAIT until released
         }
 
-        while (!gamepad1.b) {
+        while (!gamepad1.y) {
             telemetry.addLine("Wait Seconds: " + WAIT);
             telemetry.addLine("▢ = -1 \n X = +1 \n O = 0 \n Y to continue");
             telemetry.update();
@@ -58,14 +66,43 @@ public class Parameters extends LinearOpMode {
             }
         }
 
+        while (!gamepad1.a && !gamepad1.b) {
+            telemetry.addLine("upacreek \n");
+            telemetry.addLine("X - yes \n O - no");
+            telemetry.update();
+
+            if (gamepad1.a) {
+                upacreek = Upacreek.YES;
+            } else if (gamepad1.b) {
+                upacreek = Upacreek.NO;
+            }
+        }
+
+        while (!gamepad1.y) {
+            spin.sampleSensorsNow();   // 1️⃣ read hardware
+            spin.update();
+            telemetry.addLine("spindexers current position \n");
+            telemetry.addLine("triang or Y /n sets the it to the current angle" + "spindexers current angle == /n" + spin.getTelemetry().currentAngle);
+            telemetry.update();
+
+            if (gamepad1.y) {
+                spinLocation = spin.getTelemetry().currentAngle;
+            }
+        }
+
+        while (gamepad1.y) {
+            //WAIT until released
+        }
+
         while (!gamepad1.a) {
             telemetry.addLine("Color: " + allianceColor);
             telemetry.addLine("WAIT: " + WAIT);
+            telemetry.addLine("spin: " + spinLocation);
             telemetry.addLine("\nX to end program");
             telemetry.update();
         }
         telemetry.addLine("Configuration complete. Self-destructing");
         telemetry.update();
-        sleep(3000);
+        sleep(1500);
     }
 }

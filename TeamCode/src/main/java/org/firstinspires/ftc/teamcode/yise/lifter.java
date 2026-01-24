@@ -28,7 +28,7 @@ public class lifter {
     private double kD = 0.002;      // VERY small
     private double holdPower = 0.04;
 
-    private static final double DEADZONE = 0.007;
+    private static final double DEADZONE = 0.0007;
     private static final double MAX_POWER = 0.6;
 
     // state
