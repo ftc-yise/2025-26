@@ -34,22 +34,14 @@ public class Spindexer {
     // Unified PID gains (tune these at runtime)
     // --- PIDF Gains & helpers (replace old kP/MAX_POWER etc. if present) ---
     // PID-ish tuning (CRServo-friendly)
-    private static final double kP = 0.015;          // proportional gain
+    private static final double kP = 0.0065;          // proportional gain
     private static final double DEAD_BAND = 2.5;     // degrees
-    private static final double HOLD_POWER = 0.08;   // static friction compensation
-    private static final double MAX_POWER = 0.6;
+    private static final double HOLD_POWER = 0.015;   // static friction compensation
+    private static final double MAX_POWER = 0.85;
 
+    private double lastError = 0;
+    private long lastTimeNs = 0;
 
-    private static final double BRAKE_ZONE = 8.0;
-    private static final double BRAKE_GAIN = 0.45;
-    private static final double APPROACH_MAX_POWER = 0.12;
-
-    private final double ANGLE_FILTER_ALPHA = 0.18; // not 0.8
-    private final double VEL_FILTER_ALPHA = 0.22;
-
-    private static final double MIN_POWER = 0.04125;
-    private static final double DEADBAND = 0.5;
-    private static final double SLOW_ZONE = 2.0;
 
     // filters and rate limiting
     private double lastFilteredAngle = 0.0;
@@ -81,7 +73,7 @@ public class Spindexer {
     public static double silo3;
 
     // keep your existing power limits and deadband (tweakable)
-    private static final double[] SILO_ANGLES = {
+    public static double[] SILO_ANGLES = {
             silo1,   // SILO_1
             silo2,   // SILO_2
             silo3    // SILO_3
@@ -289,21 +281,28 @@ public class Spindexer {
 
         double error = smallestAngleError(targetAngle, currentAngle);
         double absError = Math.abs(error);
+
+        // --- ARRIVED ---
+        if (absError < DEAD_BAND) {
+            atTargetLatched = true;
+            return Math.signum(error) * HOLD_POWER;
+        }
+
+
+        atTargetLatched = false;
+
         double power;
 
-        if (absError < DEAD_BAND) {
-            // HOLD position against static friction
-            power = Math.signum(error) * HOLD_POWER;
-            atTargetLatched = true;
-        }
-        else {
-            // Proportional + static friction compensation
+        if (absError > 30.0) {
             power = kP * error;
-            power += Math.signum(power) * HOLD_POWER;
-            atTargetLatched = false;
+        } else {
+            // scale power down linearly inside slow zone
+            double scale = absError / 30.0;
+            power = kP * error * scale;
         }
 
-        return Range.clip(power, -MAX_POWER, MAX_POWER);
+        power = Range.clip(power, -MAX_POWER, MAX_POWER);
+        return power;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -472,11 +471,16 @@ public class Spindexer {
     }
 
     public void initSilos() {
-        public static double silo1 = normalize(Parameters.spinLocation - 120);
-        public static double silo2 = normalize(Parameters.spinLocation);
-        public static double silo3 = normalize(Parameters.spinLocation + 120);
+        silo1 = normalize(Parameters.spinLocation - 120);
+        silo2 = normalize(Parameters.spinLocation);
+        silo3 = normalize(Parameters.spinLocation + 120);
 
-
+        // keep your existing power limits and deadband (tweakable)
+        SILO_ANGLES = new double[]{
+                silo1,   // SILO_1
+                silo2,   // SILO_2
+                silo3    // SILO_3
+        };
     }
 
 }

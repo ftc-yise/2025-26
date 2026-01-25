@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -29,7 +30,9 @@ public class CloseShootAuto extends OpMode {
     private Paths paths;
     private int pathIndex = 0;
     private int lastPathIndex = -1;
-    private static final double PATH_WAIT_SECONDS = 4.0;
+    private static final double PATH_WAIT_SECONDS = 1.0;
+
+    public boolean firstTime = true;
 
 
     // Subsystems
@@ -43,6 +46,8 @@ public class CloseShootAuto extends OpMode {
 
     private Follower follower;
     private Timer pathTimer, opmodeTimer;
+    private ElapsedTime waitTimer = new ElapsedTime();
+
     private int pathState;
 
     private DcMotor intake = null;
@@ -223,12 +228,6 @@ public class CloseShootAuto extends OpMode {
                             Math.toRadians(38)
                     )
                     .build();
-
-            // Continue mapping:
-            // Path2 -> paths[2]
-            // Path3 -> paths[3]
-            // ...
-            // Path12 -> paths[12]
         }
     }
 
@@ -239,6 +238,7 @@ public class CloseShootAuto extends OpMode {
         if (pathState == 0) {
             follower.followPath(paths.paths[0]);
             pathTimer.resetTimer();
+            waitTimer.reset();
             pathState = 1;
             return;
         }
@@ -247,7 +247,7 @@ public class CloseShootAuto extends OpMode {
         if (pathState == 1 && !follower.isBusy()) {
 
             // Wait after path finishes
-            if (pathTimer.getElapsedTimeSeconds() < PATH_WAIT_SECONDS) {
+            if (waitTimer.seconds() < PATH_WAIT_SECONDS) {
                 return;
             }
 
@@ -296,6 +296,10 @@ public class CloseShootAuto extends OpMode {
                 break;
 
             case 12:
+                if (firstTime){
+                    autoShoot.startForcedCycle();
+                }
+                firstTime = false;
                 turret.autoMode();
                 turret.mode = Turret.turretMode.AUTO;
 

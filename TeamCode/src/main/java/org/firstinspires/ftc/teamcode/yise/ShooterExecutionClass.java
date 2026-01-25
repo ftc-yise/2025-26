@@ -42,6 +42,7 @@ public class ShooterExecutionClass {
         this.spindexer = spin;
         this.shooter = shooter;
         this.lifter = lift;
+        spin.initSilos();
         // keep previous default init (optional)
         lifter.setPresetPositions(0.0, 1.0);
         lifter.setCalibration(1.2, 0, 2.043, 1);

@@ -18,7 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
     public static OTOSConstants localizerConstants = new OTOSConstants()
             .hardwareMapName("otos")
-            .linearScalar(1)
+            .linearScalar(0.98688763333333333333333333333333)
             .linearUnit(DistanceUnit.INCH)
             .angleUnit(AngleUnit.RADIANS)
             .offset(new SparkFunOTOS.Pose2D(0,0,(Math.toRadians(90))));

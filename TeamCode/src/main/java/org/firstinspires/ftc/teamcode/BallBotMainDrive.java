@@ -100,7 +100,10 @@ public class BallBotMainDrive extends LinearOpMode {
         led3 = new Ledclass(hardwareMap, "led3");
 
         hood.stop();
-        spin.goToSilo1();
+
+        spin.initSilos();
+
+        spin.goToSilo2();
         lifter.setDown();
 
         waitForStart();

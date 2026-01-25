@@ -85,6 +85,7 @@ public class Parameters extends LinearOpMode {
 
             if (gamepad1.y) {
                 spinLocation = spin.getTelemetry().currentAngle;
+                spin.initSilos();
             }
         }
 
