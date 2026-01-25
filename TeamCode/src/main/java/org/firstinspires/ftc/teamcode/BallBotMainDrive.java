@@ -74,7 +74,7 @@ public class BallBotMainDrive extends LinearOpMode {
         Hood hood = new Hood(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
         ShotPatternManager patternMgr = new ShotPatternManager();
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap,lifter);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
@@ -120,7 +120,7 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
-            if (gamepad2.a && !autoShoot.isBusy()) {
+            /*if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
                 hood.setTarget(60); // e.g. 42.0
                 autoShoot.startCycle();
@@ -132,6 +132,28 @@ public class BallBotMainDrive extends LinearOpMode {
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo2();
+            }
+            autoShoot.update();*/
+            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
+            if (gamepad2.a) {
+                // start forced-fire if not already
+                shooter.update(false, false, true);    // shooter high goal
+                hood.setTarget(60);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            } else if (gamepad2.x) {
+                shooter.update(false, true, false);    // shooter lower goal
+                hood.setTarget(15);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            } else {
+                // if neither held, and we're in forced-mode, stop forced mode
+                if (autoShoot.forceShooting) {
+                    autoShoot.stopForcedCycle();
+                }
+                // normal idle behavior handled elsewhere
             }
             autoShoot.update();
 

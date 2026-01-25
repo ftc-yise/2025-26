@@ -39,7 +39,7 @@ public class FarShootAuto extends LinearOpMode {
         Spindexer spin = new Spindexer(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
         Hood hood = new Hood(hardwareMap);
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
         Turret turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {

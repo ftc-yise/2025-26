@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode.yise;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.teamcode.yise.Spindexer;
-
 
 @TeleOp(name="Game Values (RUN THIS EVERY MATCH)", group="Necessity")
 public class Parameters extends LinearOpMode {
@@ -16,7 +14,7 @@ public class Parameters extends LinearOpMode {
         NO
     }
 
-    public static double spinLocation;
+    public static double spinLocation = 240;
 
 
     public static Color allianceColor;

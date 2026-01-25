@@ -76,17 +76,16 @@ public class Spindexer {
             BallColor.NONE
     };
 
-    // keep your existing power limits and deadband (tweakable)
-    public static double silo1 = Parameters.spinLocation - 120;
-    public static double silo2 = Parameters.spinLocation;
-    public static double silo3 = Parameters.spinLocation + 120;
-    private final double[] SILO_ANGLES = new double[3];
+    public static double silo1;
+    public static double silo2;
+    public static double silo3;
 
-    public void initSilos(double spinLocation) {
-        SILO_ANGLES[0] = normalize(spinLocation - 120);
-        SILO_ANGLES[1] = normalize(spinLocation);
-        SILO_ANGLES[2] = normalize(spinLocation + 120);
-    }
+    // keep your existing power limits and deadband (tweakable)
+    private static final double[] SILO_ANGLES = {
+            silo1,   // SILO_1
+            silo2,   // SILO_2
+            silo3    // SILO_3
+    };
 
 
     private static final double[] SENSOR_OFFSETS = {
@@ -170,8 +169,6 @@ public class Spindexer {
         lastAngle = normalize((v / MAX_VOLTAGE) * 360.0);
         lastFilteredAngle = lastAngle;     // <--- add this line
         lastTimeMs = System.currentTimeMillis();
-
-        initSilos(Parameters.spinLocation);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -379,7 +376,7 @@ public class Spindexer {
     // ─────────────────────────────────────────────────────────────────────
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────
-    private double normalize(double angle) {
+    private static double normalize(double angle) {
         angle %= 360;
         if (angle < 0) angle += 360;
         return angle;
@@ -472,6 +469,14 @@ public class Spindexer {
             case 1: goToSilo2(); break;
             case 2: goToSilo3(); break;
         }
+    }
+
+    public void initSilos() {
+        public static double silo1 = normalize(Parameters.spinLocation - 120);
+        public static double silo2 = normalize(Parameters.spinLocation);
+        public static double silo3 = normalize(Parameters.spinLocation + 120);
+
+
     }
 
 }
