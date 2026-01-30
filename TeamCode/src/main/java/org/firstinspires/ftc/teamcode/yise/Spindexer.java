@@ -34,10 +34,23 @@ public class Spindexer {
     // Unified PID gains (tune these at runtime)
     // --- PIDF Gains & helpers (replace old kP/MAX_POWER etc. if present) ---
     // PID-ish tuning (CRServo-friendly)
-    private static final double kP = 0.0065;          // proportional gain
+    private static final double kP = 0.0065
+            ;          // proportional gain
     private static final double DEAD_BAND = 2.5;     // degrees
     private static final double HOLD_POWER = 0.015;   // static friction compensation
-    private static final double MAX_POWER = 0.85;
+    private static final double MAX_POWER = 1;
+    private static final double kD = 0.00215; // start here
+
+    // --- additional tunable control params (start values, tweak on-robot) ---
+    private static double kI = 0.0005;                 // small integrator (usually near 0 for CRServo)
+    private static final double VELOCITY_FILTER_ALPHA = 0.18; // 0..1, lower = smoother velocity
+    private static final double SLOW_ZONE_DEG = 60.0;  // start braking this far from target
+    private static final double MAX_SLOW_POWER = 0.40; // max power allowed while inside SLOW_ZONE
+    private static final double MIN_APPROACH_POWER = 0.055; // small nudge to prevent stall
+    private static final double INTEGRATOR_MAX = 0.15; // anti-windup clamp
+    private static final double STOP_VELOCITY = 12.0;  // deg/s considered "stopped"
+    private double integrator = 0.0;
+
 
     private double lastError = 0;
     private long lastTimeNs = 0;
@@ -119,6 +132,7 @@ public class Spindexer {
 
     // Angle tolerance for various checks
     private final double ANGLE_TOLERANCE = 0.5;
+    private final double ANGLE_TOLERANCE_COLOR = 15;
 
     // --- arrival latch ---
     private boolean atTargetLatched = false;
@@ -278,30 +292,96 @@ public class Spindexer {
 
     // --- UPDATE CONTROL ---
     private double computeSpindexerPower(double currentAngle, double targetAngle) {
-
+        // angle error (signed, -180..+180)
         double error = smallestAngleError(targetAngle, currentAngle);
         double absError = Math.abs(error);
 
-        // --- ARRIVED ---
-        if (absError < DEAD_BAND) {
-            atTargetLatched = true;
-            return Math.signum(error) * HOLD_POWER;
+        // ------------------ time & velocity estimation ------------------
+        long now = System.currentTimeMillis();
+        double dt = (now - lastTimeMs) / 1000.0;
+        if (dt <= 1e-3) dt = 1e-3; // guard
+
+        // raw angular velocity (deg/s) measured between last samples (handles wrap)
+        double rawVel = smallestAngleError(currentAngle, lastAngle) / dt;
+
+        // filtered velocity (low-pass) to reduce noise and derivative kick
+        lastFilteredVelocity = VELOCITY_FILTER_ALPHA * lastFilteredVelocity + (1.0 - VELOCITY_FILTER_ALPHA) * rawVel;
+
+        // save for next call
+        lastAngle = currentAngle;
+        lastTimeMs = now;
+
+        // ------------------ integrator (optional) ------------------
+        // Only accumulate when reasonably far from zero to avoid windup on chatter
+        if (absError > (DEAD_BAND * 2)) {
+            integrator += error * dt;
+            // clamp integrator to avoid huge I-term
+            integrator = Range.clip(integrator, -INTEGRATOR_MAX, INTEGRATOR_MAX);
+        } else {
+            // small decay to remove residual I-term near target
+            integrator *= 0.8;
         }
 
-
+        // ------------------ arrival check ------------------
+        // if within deadband and almost stopped -> arrived
+        if (absError < DEAD_BAND && Math.abs(lastFilteredVelocity) < STOP_VELOCITY) {
+            atTargetLatched = true;
+            // don't actively push across zero; hold with zero power (servo friction + small brake)
+            return 0.0;
+        }
         atTargetLatched = false;
 
+        // ------------------ base PID terms ------------------
+        double pTerm = kP * error;
+        double iTerm = kI * integrator;
+        double dTerm = -kD * lastFilteredVelocity; // use neg sign because velocity is currentAngle - lastAngle
+
+        double pid = pTerm + iTerm + dTerm;
+
+        // ------------------ zone logic ------------------
         double power;
 
-        if (absError > 30.0) {
-            power = kP * error;
+        if (absError > SLOW_ZONE_DEG) {
+            // Far: full-fast move. Use a clipped PID that will essentially be full-power
+            // but we keep pid so a too-large D can still damp.
+            power = Range.clip(pid, -MAX_POWER, MAX_POWER);
+            // if PID is too small (tiny gains), force a fast move to avoid sluggishness:
+            if (Math.abs(power) < (0.6 * MAX_POWER)) {
+                power = Math.signum(error) * 0.9 * MAX_POWER;
+            }
         } else {
-            // scale power down linearly inside slow zone
-            double scale = absError / 30.0;
-            power = kP * error * scale;
+            // Inside slow zone: progressively scale the PID output toward zero.
+            // Use a quadratic shaping so we slow faster near target.
+            double frac = Math.max(0.0, Math.min(1.0, absError / SLOW_ZONE_DEG));
+            double shape = frac * frac; // quadratic
+
+            power = pid * shape;
+
+            // Ensure we can still overcome static friction (small nudge toward target)
+            if (Math.abs(power) < MIN_APPROACH_POWER) {
+                power = MIN_APPROACH_POWER * Math.signum(error);
+            }
+
+            // Cap the slow-zone power so braking is controllable
+            power = Range.clip(power, -MAX_SLOW_POWER, MAX_SLOW_POWER);
+
+            // Additional damping: if velocity is large and heading toward the target,
+            // reduce power more aggressively to avoid overshoot.
+            if (Math.signum(error) == Math.signum(lastFilteredVelocity)) {
+                // moving away from target (velocity has same sign as error) -> be aggressive
+                double velScale = Math.min(1.0, Math.abs(lastFilteredVelocity) / 120.0); // 0..1
+                power *= (1.0 - 0.5 * velScale); // reduce up to 50% when very fast
+            }
         }
 
+        // ------------------ final saturate & return ------------------
         power = Range.clip(power, -MAX_POWER, MAX_POWER);
+
+        // populate telemetry (so you can see debug while tuning)
+        t.pidP = pTerm;
+        t.pidI = iTerm;
+        t.pidD = dTerm;
+
         return power;
     }
 
@@ -363,11 +443,14 @@ public class Spindexer {
     // ─────────────────────────────────────────────────────────────────────
     private double rateLimit(double p) {
         double diff = p - lastPower;
-
-        if (Math.abs(diff) > MAX_DELTA) {
-            p = lastPower + Math.signum(diff) * MAX_DELTA;
+        // allow fast sign reversal (larger allowed delta) when reversing direction
+        double allowedDelta = MAX_DELTA;
+        if (Math.signum(p) != Math.signum(lastPower)) {
+            allowedDelta *= 4.0; // allow quicker reversal to avoid overshoot
         }
-
+        if (Math.abs(diff) > allowedDelta) {
+            p = lastPower + Math.signum(diff) * allowedDelta;
+        }
         lastPower = p;
         return clamp(p, -1, 1);
     }
@@ -425,15 +508,15 @@ public class Spindexer {
         int b = s.blue();
 
         if (sensorIndex == 0) { // middle sensor
-            if (b > 150) return BallColor.PURPLE;
+            if (b > 250 && b > g) return BallColor.PURPLE;
             else if (g > 150) return BallColor.GREEN;
             return BallColor.NONE;
         } else if (sensorIndex == 1) { // backLeft
-            if (b > 225) return BallColor.PURPLE;
+            if (b > 225  && b > g) return BallColor.PURPLE;
             else if (g > 350) return BallColor.GREEN;
             return BallColor.NONE;
         } else { // sensorIndex == 2 -> backRight
-            if (b > 175) return BallColor.PURPLE;
+            if (b > 175  && b > g) return BallColor.PURPLE;
             if (g > 250) return BallColor.GREEN;
             return BallColor.NONE;
         }
@@ -449,7 +532,7 @@ public class Spindexer {
     private int angleToSilo(double angle) {
         for (int i = 0; i < 3; i++) {
             double error = smallestAngleError(SILO_ANGLES[i], angle);
-            if (Math.abs(error) < ANGLE_TOLERANCE) return i;
+            if (Math.abs(error) < ANGLE_TOLERANCE_COLOR) return i;
         }
         return -1;
     }

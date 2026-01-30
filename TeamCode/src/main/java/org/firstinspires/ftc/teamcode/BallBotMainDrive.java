@@ -63,18 +63,28 @@ public class BallBotMainDrive extends LinearOpMode {
     private double logInterval = 0.05;
     public double time = runtime.seconds();
 
+    private ShotPatternManager.ShotPattern patternFromTag(int tagId) {
+        switch (tagId) {
+            case 21: return ShotPatternManager.ShotPattern.GPP;
+            case 22: return ShotPatternManager.ShotPattern.PGP;
+            case 23: return ShotPatternManager.ShotPattern.PPG;
+            default: return null;
+        }
+    }
+    private ShotPatternManager.ShotPattern activePattern = null;
     boolean firstRun = true;
     Turret.turretAlliance alliance = Turret.turretAlliance.RED;
 
     @Override
     public void runOpMode() throws InterruptedException {
         DriveClass drive = new DriveClass(hardwareMap);
+        ShotPatternManager patternMgr = new ShotPatternManager();
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
         Hood hood = new Hood(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
-        ShotPatternManager patternMgr = new ShotPatternManager();
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap,lifter);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        autoShoot.setPatternManager(patternMgr);
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
@@ -123,22 +133,34 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
-            /*if (gamepad2.a && !autoShoot.isBusy()) {
+            if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
-                hood.setTarget(60); // e.g. 42.0
+                hood.setTarget(60);
+
+                if (activePattern != null) {
+                    patternMgr.clear();
+                    patternMgr.addPattern(activePattern.sequence);
+                }
+
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo1();
-            } else if (gamepad2.x && !autoShoot.isBusy()){
+            }
+            else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
                 hood.setTarget(15); // e.g. 0
+                if (activePattern != null) {
+                    patternMgr.clear();
+                    patternMgr.addPattern(activePattern.sequence);
+                }
+
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo2();
             }
-            autoShoot.update();*/
+            autoShoot.update();
             // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
-            if (gamepad2.a) {
+            /*if (gamepad2.a) {
                 // start forced-fire if not already
                 shooter.update(false, false, true);    // shooter high goal
                 hood.setTarget(60);
@@ -158,7 +180,31 @@ public class BallBotMainDrive extends LinearOpMode {
                 }
                 // normal idle behavior handled elsewhere
             }
-            autoShoot.update();
+            autoShoot.update();*/
+
+            //vision/pattern things
+
+            if (gamepad1.y) {
+                turret.limelight.pipelineSwitch(2);
+
+                int tagId = turret.getID();
+                ShotPatternManager.ShotPattern p = patternFromTag(tagId);
+                if (p != null) {
+                    patternMgr.clear();
+                    patternMgr.addPattern(p.sequence);
+                }
+
+            }
+            else {
+                if (Parameters.allianceColor == Parameters.Color.RED) {
+                    alliance = Turret.turretAlliance.RED;
+                    turret.limelight.pipelineSwitch(4);
+                } else {
+                    alliance = Turret.turretAlliance.BLUE;
+                    turret.limelight.pipelineSwitch(3);
+                }
+            }
+
 
             if ((turret.getID() == 20 || turret.getID() == 24)){
                 led1.setBlue();
@@ -404,6 +450,8 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Mode", turret.mode);
             telemetry.addData("Power", turret.turretPower);
             telemetry.addData("pose", turret.getPose());
+            telemetry.addData("id", turret.getID());
+            telemetry.addData("pipeline", turret.limelight.getStatus().getPipelineIndex());
 
 // SILOS
             telemetry.addLine("=== SILOS ===");

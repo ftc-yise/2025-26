@@ -6,6 +6,31 @@ public class ShotPatternManager {
 
     public static final int MAX_SHOTS = 9;
 
+    public enum ShotPattern {
+        GPP(new Spindexer.BallColor[]{
+                Spindexer.BallColor.GREEN,
+                Spindexer.BallColor.PURPLE,
+                Spindexer.BallColor.PURPLE,
+        }),
+        PPG(new Spindexer.BallColor[]{
+                Spindexer.BallColor.PURPLE,
+                Spindexer.BallColor.PURPLE,
+                Spindexer.BallColor.GREEN
+        }),
+        PGP(new Spindexer.BallColor[]{
+                Spindexer.BallColor.PURPLE,
+                Spindexer.BallColor.GREEN,
+                Spindexer.BallColor.PURPLE
+        });
+
+        public final Spindexer.BallColor[] sequence;
+
+        ShotPattern(Spindexer.BallColor[] seq) {
+            this.sequence = seq;
+        }
+    }
+
+
     private final Spindexer.BallColor[] shotQueue =
             new Spindexer.BallColor[MAX_SHOTS];
 
@@ -23,15 +48,14 @@ public class ShotPatternManager {
     // ADD PATTERN (3-ball pattern)
     // ─────────────────────────────────────────
     public void addPattern(Spindexer.BallColor[] pattern) {
-        if (pattern == null || pattern.length != 3) return;
+        if (pattern == null) return;
 
-        for (int i = 0; i < 3; i++) {
-            for (Spindexer.BallColor color : pattern) {
-                if (size >= MAX_SHOTS) return;
-                shotQueue[size++] = color;
-            }
+        for (Spindexer.BallColor color : pattern) {
+            if (size >= MAX_SHOTS) return;
+            shotQueue[size++] = color;
         }
     }
+
 
     // ─────────────────────────────────────────
     // ADD SINGLE BALL (intake mistake recovery)

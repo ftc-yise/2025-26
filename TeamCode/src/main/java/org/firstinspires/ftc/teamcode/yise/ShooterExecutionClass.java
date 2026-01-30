@@ -1,8 +1,9 @@
 package org.firstinspires.ftc.teamcode.yise;
 
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+
+import java.util.ArrayList;
 
 public class ShooterExecutionClass {
 
@@ -38,6 +39,13 @@ public class ShooterExecutionClass {
     private final double LIFT_UP = 0.75;
     private final double LIFT_DOWN = 0.00;
 
+    // --- Pattern integration fields (NEW) ---
+    private ShotPatternManager patternMgr = null;   // set by caller
+    private boolean patternMode = false;            // true when we are executing a pattern plan
+    private final int[] firingPlan = new int[ShotPatternManager.MAX_SHOTS]; // silo indices
+    private int firingCount = 0;                    // how many entries in firingPlan
+    private int firingIndex = 0;                    // next index to run
+
     public ShooterExecutionClass(Spindexer spin, ShooterClass shooter, HardwareMap hardwareMap, lifter lift) {
         this.spindexer = spin;
         this.shooter = shooter;
@@ -46,14 +54,45 @@ public class ShooterExecutionClass {
         // keep previous default init (optional)
         lifter.setPresetPositions(0.0, 1.0);
         lifter.setCalibration(1.2, 0, 2.043, 1);
+
+        // init plan to -1
+        for (int i = 0; i < firingPlan.length; i++) firingPlan[i] = -1;
+    }
+
+    // ---------------- PATTERN API (NEW) ----------------
+    public void setPatternManager(ShotPatternManager mgr) {
+        this.patternMgr = mgr;
     }
 
     // ---------------- START CYCLE ----------------
     public void startCycle() {
         if (state != State.IDLE) return;
 
-        // Compute which silos actually have balls
+        // Read sensors now and prevent updates while we compute plan
+        spindexer.sampleSensorsNow();
         spindexer.disableSensorUpdates();
+
+        // Try to build a firing plan from the pattern manager if one exists
+        if (patternMgr != null && patternMgr.hasShots()) {
+            if (buildFiringPlanFromPattern()) {
+                // patternMode and firingPlan set by buildFiringPlanFromPattern()
+                shotsFired = 0;
+                totalShots = firingCount;
+                firingIndex = 0;
+                currentSiloIndex = firingPlan[0];
+                // go to the first planned silo
+                goToSiloIndex(currentSiloIndex);
+                state = State.MOVE_TO_SILO;
+                timer.reset();
+                return;
+            } else {
+                // Couldn't make a plan (e.g., pattern contains colors not present)
+                // fall through to original behavior (fastest order)
+                patternMode = false;
+            }
+        }
+
+        // Original fallback behaviour (fastest order)
         totalShots = 0;
         Spindexer.BallColor[] colors = spindexer.getTelemetry().siloColors;
         for (Spindexer.BallColor color : colors) {
@@ -69,10 +108,12 @@ public class ShooterExecutionClass {
             } else {
                 spindexer.enableSensorUpdates();
                 state = State.IDLE;
+                jittered = true;
             }
             return;
         }
 
+        // start normal cycle (original)
         shotsFired = 0;
         state = State.MOVE_TO_SILO;
         moveToNextFullSilo();
@@ -80,10 +121,9 @@ public class ShooterExecutionClass {
     }
 
     // ---------------- FORCED MODE API ----------------
-    // Call this to start firing continuously (ignores sensor occupancy)
     public void startForcedCycle() {
         if (state != State.IDLE) {
-            // If already running, do nothing
+            // If already running, do nothing (but set flag)
             forceShooting = true;
             return;
         }
@@ -153,6 +193,7 @@ public class ShooterExecutionClass {
             case SPIN_WAIT:
                 if (timer.seconds() > .25) {
                     state = State.SPIN_UP_SHOOTER;
+                    spindexer.setNeutral();
                     timer.reset();
                 }
                 break;
@@ -187,6 +228,12 @@ public class ShooterExecutionClass {
                         spindexer.clearSilo(currentSiloIndex);
                     }
 
+                    // If we executed a pattern, consume its head entry so the manager is in sync
+                    if (patternMode && patternMgr != null && patternMgr.hasShots()) {
+                        // consume one from the manager (getNext shifts queue)
+                        patternMgr.getNext();
+                    }
+
                     if (!forceShooting) {
                         if (shotsFired >= totalShots) {
                             state = State.COMPLETE;
@@ -210,20 +257,32 @@ public class ShooterExecutionClass {
                 // restore sensor updates (if not forced)
                 if (!forceShooting) spindexer.enableSensorUpdates();
                 spindexer.sampleSensorsNow();
+                // clear pattern mode when done
+                patternMode = false;
                 state = State.IDLE;
                 break;
         }
     }
 
-    // ---------------- HELPER: Move to next silo (forced-aware) ----------------
+    // ---------------- HELPER: Move to next silo (forced-aware + pattern-aware) ----------------
     private void moveToNextFullSilo() {
         if (forceShooting) {
             // blind-cycle: simply step to next index and go there
             currentSiloIndex = (currentSiloIndex + 1) % 3;
-            switch (currentSiloIndex) {
-                case 0: spindexer.goToSilo1(); break;
-                case 1: spindexer.goToSilo2(); break;
-                case 2: spindexer.goToSilo3(); break;
+            goToSiloIndex(currentSiloIndex);
+            return;
+        }
+
+        // If we have a firing plan, follow it
+        if (patternMode && firingCount > 0) {
+            firingIndex++;
+            if (firingIndex < firingCount) {
+                currentSiloIndex = firingPlan[firingIndex];
+                goToSiloIndex(currentSiloIndex);
+            } else {
+                // done with plan
+                currentSiloIndex = -1;
+                state = State.COMPLETE;
             }
             return;
         }
@@ -237,11 +296,7 @@ public class ShooterExecutionClass {
             int idx = (nextIndex + i) % 3;
             if (colors[idx] != Spindexer.BallColor.NONE) {
                 currentSiloIndex = idx;
-                switch (idx) {
-                    case 0: spindexer.goToSilo1(); break;
-                    case 1: spindexer.goToSilo2(); break;
-                    case 2: spindexer.goToSilo3(); break;
-                }
+                goToSiloIndex(idx);
                 return;
             }
         }
@@ -249,6 +304,79 @@ public class ShooterExecutionClass {
         // none found -> finish
         currentSiloIndex = -1;
         state = State.COMPLETE;
+    }
+
+    // Small helper: call the correct go-to function for an index
+    private void goToSiloIndex(int idx) {
+        switch (idx) {
+            case 0: spindexer.goToSilo1(); break;
+            case 1: spindexer.goToSilo2(); break;
+            case 2: spindexer.goToSilo3(); break;
+            default: break;
+        }
+    }
+
+    // Build firing plan from the queued pattern (non-destructive)
+    // Returns true if a valid plan (>=1 entries) was built, false otherwise.
+    private boolean buildFiringPlanFromPattern() {
+        patternMode = false;
+        firingCount = 0;
+        // snapshot of queued colors (do not consume yet)
+        Spindexer.BallColor[] queued = patternMgr.snapshot();
+
+        // determine number of queued (contiguous at front)
+        int queuedCount = 0;
+        for (int i = 0; i < queued.length; i++) {
+            if (queued[i] == Spindexer.BallColor.NONE) break;
+            queuedCount++;
+        }
+        if (queuedCount == 0) return false;
+
+        // get current silo colors
+        Spindexer.BallColor[] silos = spindexer.getTelemetry().siloColors;
+        boolean[] used = new boolean[silos.length];
+
+        ArrayList<Integer> plan = new ArrayList<>();
+
+        // for each desired color in queue (in order) try to find a silo that contains it
+        for (int q = 0; q < queuedCount; q++) {
+            Spindexer.BallColor desired = queued[q];
+            int found = -1;
+            for (int s = 0; s < silos.length; s++) {
+                if (!used[s] && silos[s] == desired) {
+                    found = s;
+                    break;
+                }
+            }
+            if (found != -1) {
+                plan.add(found);
+                used[found] = true;
+            } else {
+                // If a desired color is not present, we *cannot* fully satisfy the pattern in-order.
+                // Decide policy: skip missing entries (fast fallback) or abort plan.
+                // Here we'll ABORT plan if any requested color isn't present (keeps pattern integrity).
+                if (plan.size() == 0) {
+                    // no usable entries -> fail
+                    return false;
+                } else {
+                    // partial plan exists: use the partial plan (this is a policy choice)
+                    break;
+                }
+            }
+        }
+
+        if (plan.isEmpty()) return false;
+
+        // copy plan to firingPlan array
+        firingCount = plan.size();
+        for (int i = 0; i < firingCount; i++) {
+            firingPlan[i] = plan.get(i);
+        }
+        // mark unused slots -1
+        for (int i = firingCount; i < firingPlan.length; i++) firingPlan[i] = -1;
+
+        patternMode = true;
+        return true;
     }
 
     // ---------------- IS BUSY ----------------
