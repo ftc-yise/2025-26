@@ -133,7 +133,7 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
-            if (gamepad2.a && !autoShoot.isBusy()) {
+           /* if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
                 hood.setTarget(60);
 
@@ -159,8 +159,8 @@ public class BallBotMainDrive extends LinearOpMode {
                 //spin.goToSilo2();
             }
             autoShoot.update();
-            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
-            /*if (gamepad2.a) {
+            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---*/
+            if (gamepad2.a) {
                 // start forced-fire if not already
                 shooter.update(false, false, true);    // shooter high goal
                 hood.setTarget(60);
@@ -180,7 +180,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 }
                 // normal idle behavior handled elsewhere
             }
-            autoShoot.update();*/
+            autoShoot.update();
 
             //vision/pattern things
 
