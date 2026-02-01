@@ -23,10 +23,6 @@ import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
 import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
-import com.qualcomm.hardware.limelightvision.LLResultTypes;
-import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
-
 @Autonomous(name = "Far Shoot Auto", group = "Auto")
 public class FarShootAuto extends OpMode {
     private Paths paths;
@@ -53,7 +49,17 @@ public class FarShootAuto extends OpMode {
     private CRServo walleft = null;
     private CRServo wallright = null;
 
-
+    Turret.turretAlliance alliance = Turret.turretAlliance.RED;
+   /* public boolean{
+        if (Parameters.allianceColor == Parameters.Color.RED) {
+            alliance = Turret.turretAlliance.RED;
+            turret.limelight.pipelineSwitch(4);
+        } else {
+            alliance = Turret.turretAlliance.BLUE;
+            turret.limelight.pipelineSwitch(3);
+        }
+    }
+*/
     private boolean pathJustChanged() {
         if (pathIndex != lastPathIndex) {
             lastPathIndex = pathIndex;
@@ -64,7 +70,6 @@ public class FarShootAuto extends OpMode {
 
     public static class Paths {
         public PathChain[] paths;
-
 
         public Paths(Follower follower) {
             paths = new PathChain[14];
@@ -127,7 +132,7 @@ public class FarShootAuto extends OpMode {
             paths[5] = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(102.938, 35.748),
-                            new Pose(72.112, 9.047)
+                            new Pose(72.112, 23.739)
 
                     ))
                     .setLinearHeadingInterpolation(
@@ -175,7 +180,7 @@ public class FarShootAuto extends OpMode {
             paths[9] = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(107.462, 59.457),
-                            new Pose(71.994, 9.297)
+                            new Pose(71.994, 23.442)
 
                     ))
                     .setLinearHeadingInterpolation(
@@ -223,7 +228,7 @@ public class FarShootAuto extends OpMode {
             paths[13] = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(108.328, 83.174),
-                            new Pose(72.784, 9.100)
+                            new Pose(72.784, 23.291)
 
                     ))
                     .setLinearHeadingInterpolation(

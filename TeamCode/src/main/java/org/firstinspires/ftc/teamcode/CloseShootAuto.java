@@ -66,168 +66,64 @@ public class CloseShootAuto extends OpMode {
         public PathChain[] paths;
 
         public Paths(Follower follower) {
-            paths = new PathChain[13];
+            paths = new PathChain[5];
 
             paths[0] = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(109.456, 135.522),
-                            new Pose(90.661, 120.478)
+                            new Pose(123.621, 124.516),
+                            new Pose(83.770, 83.701)
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(180),
-                            Math.toRadians(38)
+                            Math.toRadians(-53),
+                            Math.toRadians(0)
                     )
                     .build();
 
             paths[1] = follower.pathBuilder()
-                    .addPath(new BezierCurve(
-                            new Pose(90.661, 120.478),
-                            new Pose(73.117, 84.132),
-                            new Pose(95.367, 85.166)
+                    .addPath(new BezierLine(
+                            new Pose(83.770, 83.701),
+                            new Pose(130.656, 83.415)
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(38),
-                            Math.toRadians(-6)
+                            Math.toRadians(0),
+                            Math.toRadians(0)
                     )
                     .build();
             paths[2] = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(95.367, 85.166),
-                            new Pose(129.895, 83.565)
+                            new Pose(130.656, 83.415),
+                            new Pose(83.997, 83.871)
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
+                            Math.toRadians(0),
+                            Math.toRadians(0)
                     )
                     .build();
 
             paths[3] = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(129.895, 83.565),
-                            new Pose(106.517, 83.565)
+                            new Pose(83.997, 83.871),
+                            new Pose(103.860, 59.879)
 
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
+                            Math.toRadians(0),
+                            Math.toRadians(0)
                     )
                     .build();
             paths[4] = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                            new Pose(106.517, 83.565),
-                            new Pose(85.404, 87.064),
-                            new Pose(71.002, 91.923)
+                            new Pose(103.860, 59.879),
+                            new Pose(129.166, 59.862)
 
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
+                            Math.toRadians(0),
+                            Math.toRadians(0)
                     )
                     .build();
 
-            paths[5] = follower.pathBuilder()
-                    .addPath(new BezierCurve(
-                            new Pose(71.002, 91.923),
-                            new Pose(70.817, 60.918),
-                            new Pose(104.145, 60.257)
 
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[6] = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(104.145, 60.257),
-
-                            new Pose(130.245, 59.552)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[7] = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(130.245, 59.552),
-
-                            new Pose(103.807, 60.132)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[8] = follower.pathBuilder()
-                    .addPath(new BezierCurve(
-                            new Pose(103.807, 60.132),
-                            new Pose(72.234, 60.400),
-                            new Pose(70.822, 92.458)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[9] = follower.pathBuilder()
-                    .addPath(new BezierCurve(
-                            new Pose(70.822, 92.458),
-                            new Pose(50.768, 36.534),
-                            new Pose(103.124, 35.824)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[10] = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(103.124, 35.824),
-
-                            new Pose(130.478, 35.110)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[11] = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(130.478, 35.110),
-
-                            new Pose(103.356, 35.460)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(-6)
-                    )
-                    .build();
-
-            paths[12] = follower.pathBuilder()
-                    .addPath(new BezierCurve(
-                            new Pose(103.356, 35.460),
-                            new Pose(48.962, 37.448),
-                            new Pose(70.585, 92.306)
-
-                    ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-6),
-                            Math.toRadians(38)
-                    )
-                    .build();
         }
     }
 
@@ -279,9 +175,7 @@ public class CloseShootAuto extends OpMode {
 
         switch (pathIndex) {
 
-            case 2:
-            case 6:
-            case 10:
+            case 0:
                 intake.setPower(1);
                 walleft.setPower(1);
                 wallright.setPower(1);
@@ -289,25 +183,11 @@ public class CloseShootAuto extends OpMode {
                 break;
 
             case 3:
-            case 7:
-            case 11:
+            case 5:
                 walleft.setPower(0.51);
                 wallright.setPower(0.51);
                 break;
 
-            case 12:
-                if (firstTime){
-                    autoShoot.startForcedCycle();
-                }
-                firstTime = false;
-                turret.autoMode();
-                turret.mode = Turret.turretMode.AUTO;
-
-                shooter.update(false, false, true);
-                hood.update();
-                autoShoot.update();
-                spin.update();
-                break;
         }
     }
 
