@@ -34,9 +34,9 @@ public class Spindexer {
     // Unified PID gains (tune these at runtime)
     // --- PIDF Gains & helpers (replace old kP/MAX_POWER etc. if present) ---
     // PID-ish tuning (CRServo-friendly)
-    private static final double kP = 0.0065
+    private static final double kP = 0.0055
             ;          // proportional gain
-    private static final double DEAD_BAND = 2.5;     // degrees
+    private static final double DEAD_BAND = 1.5;     // degrees
     private static final double HOLD_POWER = 0.015;   // static friction compensation
     private static final double MAX_POWER = 1;
     private static final double kD = 0.00215; // start here
@@ -44,9 +44,9 @@ public class Spindexer {
     // --- additional tunable control params (start values, tweak on-robot) ---
     private static double kI = 0.0005;                 // small integrator (usually near 0 for CRServo)
     private static final double VELOCITY_FILTER_ALPHA = 0.18; // 0..1, lower = smoother velocity
-    private static final double SLOW_ZONE_DEG = 60.0;  // start braking this far from target
+    private static final double SLOW_ZONE_DEG = 30.0;  // start braking this far from target
     private static final double MAX_SLOW_POWER = 0.40; // max power allowed while inside SLOW_ZONE
-    private static final double MIN_APPROACH_POWER = 0.055; // small nudge to prevent stall
+    private static final double MIN_APPROACH_POWER = 0.03; // small nudge to prevent stall
     private static final double INTEGRATOR_MAX = 0.15; // anti-windup clamp
     private static final double STOP_VELOCITY = 12.0;  // deg/s considered "stopped"
     private double integrator = 0.0;

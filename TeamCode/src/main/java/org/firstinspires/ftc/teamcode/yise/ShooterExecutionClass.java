@@ -170,18 +170,22 @@ public class ShooterExecutionClass {
             }
 
             case IDLE:
-                shooter.update(false, false, false);
+                if (org.firstinspires.ftc.teamcode.yise.Parameters.autonomous == org.firstinspires.ftc.teamcode.yise.Parameters.AUTONOMOUS.YES) {
+                    shooter.update(false, false, true);
+                } else {
+                    shooter.update(false, false, false);
+                }
                 return;
 
             case MOVE_TO_SILO:
                 // If forced, accept looser tolerance and keep moving between silos
                 double angleErr = Math.abs(spindexer.getTelemetry().angleError);
-                if (timer.seconds() > 0.12) {
-                    if (angleErr < 2) {
+                if (timer.seconds() > 0.22) {
+                    if (angleErr < 3) {
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
-                    } else if (timer.seconds() > 1.3) { // watchdog
+                    } else if (timer.seconds() > 5) { // watchdog
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
@@ -189,9 +193,8 @@ public class ShooterExecutionClass {
                 }
                 break;
 
-
             case SPIN_WAIT:
-                if (timer.seconds() > .25) {
+                if (timer.seconds() > .35) {
                     state = State.SPIN_UP_SHOOTER;
                     spindexer.setNeutral();
                     timer.reset();
@@ -200,11 +203,9 @@ public class ShooterExecutionClass {
 
             case SPIN_UP_SHOOTER:
                 if (shooter.getTelemetry().errorRPM < 150) {
-                    if (timer.seconds() > .35) {
                         lifter.setUp();
                         timer.reset();
                         state = State.FIRE_LIFT_UP;
-                    }
                 }
                 break;
 
@@ -223,15 +224,33 @@ public class ShooterExecutionClass {
                 if (lifter.isDown() || timer.seconds() > (LIFTER_MOVE_TIMEOUT + 0.3)) {
                     shotsFired++;
 
+                    // SAFETY: read current color at that silo BEFORE we possibly clear it.
+                    Spindexer.BallColor firedColor = Spindexer.BallColor.NONE;
+                    if (currentSiloIndex >= 0 && currentSiloIndex < 3) {
+                        firedColor = spindexer.getTelemetry().siloColors[currentSiloIndex];
+                    }
+
                     // Clear the fired silo only if not in force-mode (avoid hiding state)
                     if (!forceShooting && currentSiloIndex != -1) {
                         spindexer.clearSilo(currentSiloIndex);
                     }
 
-                    // If we executed a pattern, consume its head entry so the manager is in sync
+                    // If we executed a pattern, CONSUME its head entry only if it matches the color we actually fired.
+                    // This prevents consuming pattern entries when the robot couldn't satisfy them.
                     if (patternMode && patternMgr != null && patternMgr.hasShots()) {
-                        // consume one from the manager (getNext shifts queue)
-                        patternMgr.getNext();
+                        // find first queued color (head) in the manager snapshot
+                        Spindexer.BallColor[] queued = patternMgr.snapshot();
+                        Spindexer.BallColor head = Spindexer.BallColor.NONE;
+                        for (int i = 0; i < queued.length; i++) {
+                            if (queued[i] != Spindexer.BallColor.NONE) { head = queued[i]; break; }
+                        }
+                        // Only consume if the head equals what we actually fired (robust against mis-read or mismatch)
+                        if (head != Spindexer.BallColor.NONE && head == firedColor) {
+                            patternMgr.getNext();
+                        } else {
+                            // If mismatch: do NOT consume. This preserves pattern integrity
+                            // Optionally: log a telemetry flag or increment an internal counter for debugging.
+                        }
                     }
 
                     if (!forceShooting) {
@@ -353,13 +372,12 @@ public class ShooterExecutionClass {
                 used[found] = true;
             } else {
                 // If a desired color is not present, we *cannot* fully satisfy the pattern in-order.
-                // Decide policy: skip missing entries (fast fallback) or abort plan.
-                // Here we'll ABORT plan if any requested color isn't present (keeps pattern integrity).
+                // Policy: use the partial plan we were able to build (if any).
                 if (plan.size() == 0) {
                     // no usable entries -> fail
                     return false;
                 } else {
-                    // partial plan exists: use the partial plan (this is a policy choice)
+                    // partial plan exists: use the partial plan
                     break;
                 }
             }

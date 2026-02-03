@@ -85,6 +85,8 @@ public class BallBotMainDrive extends LinearOpMode {
         lifter lifter = new lifter(hardwareMap);
         ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
         autoShoot.setPatternManager(patternMgr);
+        Parameters parem = new Parameters();
+        parem.autonomous = Parameters.AUTONOMOUS.NO;
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
@@ -133,7 +135,7 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.updateMotors(gamepad1, false);
 
             // --- SHOOTING & SPINDEXOR ---
-           /* if (gamepad2.a && !autoShoot.isBusy()) {
+            if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
                 hood.setTarget(60);
 
@@ -159,8 +161,8 @@ public class BallBotMainDrive extends LinearOpMode {
                 //spin.goToSilo2();
             }
             autoShoot.update();
-            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---*/
-            if (gamepad2.a) {
+            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
+            /*if (gamepad2.a) {
                 // start forced-fire if not already
                 shooter.update(false, false, true);    // shooter high goal
                 hood.setTarget(60);
@@ -180,7 +182,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 }
                 // normal idle behavior handled elsewhere
             }
-            autoShoot.update();
+            autoShoot.update();*/
 
             //vision/pattern things
 
@@ -413,6 +415,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
 // --- TELEMETRY ---
 // SHOOTER
+            shooter.updateTelemetry();
             ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
             telemetry.addLine("=== SHOOTER ===");
             telemetry.addData("Mode", s.mode);
