@@ -48,7 +48,15 @@ public class CloseShootAuto extends OpMode {
     private Timer pathTimer, opmodeTimer;
     private ElapsedTime waitTimer = new ElapsedTime();
 
-    private int pathState;
+    public enum PathState{
+        DRIVE_START,
+        SHOOT_PRELOAD,
+        BALL_LINE_3_INTAKE
+    }
+    PathState pathstate;
+    private final Pose startPose = new Pose(83.76982892690512, 83.70139968895805,Math.toRadians(270));
+    private final Pose shootPose = new Pose(130.65629860031103, 83.41524105754274,Math.toRadians(0));
+
 
     private DcMotor intake = null;
     private CRServo walleft = null;
@@ -63,16 +71,12 @@ public class CloseShootAuto extends OpMode {
     }
 
     public static class Paths {
-        public PathChain[] paths;
-
+        //public PathChain[] paths;
+        private PathChain driveStartPosShootPos;
         public Paths(Follower follower) {
-            paths = new PathChain[5];
-
-            paths[0] = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(123.621, 124.516, Math.toRadians(270)),
-                            new Pose(83.770, 83.701, Math.toRadians(0))
-                    ))
+            driveStartPosShootPos = follower.pathBuilder()
+                    .addPath(new BezierLine(startPose, shootPose));
+                    .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
                     .build();
 
             paths[1] = follower.pathBuilder()
@@ -184,7 +188,6 @@ public class CloseShootAuto extends OpMode {
                 break;
 
             case 3:
-            case 5:
                 walleft.setPower(0.51);
                 wallright.setPower(0.51);
                 break;
