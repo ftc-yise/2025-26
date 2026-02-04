@@ -30,7 +30,7 @@ public class CloseShootAuto extends OpMode {
     private Paths paths;
     private int pathIndex = 0;
     private int lastPathIndex = -1;
-    private static final double PATH_WAIT_SECONDS = 1.0;
+    private static final double PATH_WAIT_SECONDS = 4.0;
 
     public boolean firstTime = true;
 
@@ -70,13 +70,9 @@ public class CloseShootAuto extends OpMode {
 
             paths[0] = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(123.621, 124.516),
-                            new Pose(83.770, 83.701)
+                            new Pose(123.621, 124.516, Math.toRadians(270)),
+                            new Pose(83.770, 83.701, Math.toRadians(0))
                     ))
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(-53),
-                            Math.toRadians(0)
-                    )
                     .build();
 
             paths[1] = follower.pathBuilder()
@@ -157,7 +153,12 @@ public class CloseShootAuto extends OpMode {
             }
         }
     }
-
+/*
+    // Wait after path finishes
+            if (pathTimer.getElapsedTimeSeconds() < PATH_WAIT_SECONDS) {
+        return;
+    }
+*/
     /** These change the states of the paths and actions. It will also reset the timers of the individual switches **/
     public void setPathState(int pState) {
         pathState = pState;
