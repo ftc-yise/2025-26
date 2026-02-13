@@ -27,14 +27,14 @@ public class Turret {
     // --- PID CONTROL CONSTANTS  ---
 
     // --- PIDF CONTROL CONSTANTS ---
-    public static double kP = 0.018;
-    public static double kI = 0.001;
+    public static double kP = 0.016;
+    public static double kI = 0.00089;
     public static double kD = 0.0065;
-    public static double kF = 0.14;   // static friction feedforward
+    public static double kF = 0.12;   // static friction feedforward
 
     public static double AUTO_MAX_POWER = 0.5;
-    public static double TARGET_TOLERANCE_DEG = 1.5;
-    public static double AUTO_MIN_POWER_FLOOR = 0.15;
+    public static double TARGET_TOLERANCE_DEG = 1.3;
+    public static double AUTO_MIN_POWER_FLOOR = 0.12;
 
     // --- ANALOG MANUAL CONTROL CONSTANTS  ---
     public static double MAX_MANUAL_POWER = 1.0;

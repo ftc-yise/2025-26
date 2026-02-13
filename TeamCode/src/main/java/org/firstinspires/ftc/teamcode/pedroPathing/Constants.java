@@ -25,19 +25,22 @@ public class Constants {
 
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(6.35029)
+            .forwardZeroPowerAcceleration(-66)
             .useSecondaryTranslationalPIDF(true)
             .useSecondaryHeadingPIDF(true)
             .useSecondaryDrivePIDF(true)
             .centripetalScaling(0.003)
-            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.12,0.0,0.04,0.3,0.001))
-            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.2,0.0,0.05,0.3,0.008))
-            .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.18, 0.001, 0.01, 0.001))
-            .translationalPIDFCoefficients(new PIDFCoefficients(0.24, 0, 0.001, 0.008))
-            .headingPIDFCoefficients(new PIDFCoefficients(0.4, 0, 0.01, 0.016))
-            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.35, 0, 0.001, 0.008));
+            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.08,0.05,0.04,0.3,0.0001))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.2,0.0,0.15,0.6,0.008))
+            .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.16, 0.001, 0.01, 0.008))
+            .translationalPIDFCoefficients(new PIDFCoefficients(0.2, 0.001, 0.001, 0.008))
+            .headingPIDFCoefficients(new PIDFCoefficients(0.6, 0, 0.01, 0.016))
+            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.38, 0.001, 0.05, 0.012));
 
     public static MecanumConstants driveConstants = new MecanumConstants()
             .maxPower(1)
+            .xVelocity(56.55)
+            .yVelocity(51.03)
             .rightFrontMotorName("RightFrontDrive")
             .rightRearMotorName("RightBackDrive")
             .leftRearMotorName("LeftBackDrive")

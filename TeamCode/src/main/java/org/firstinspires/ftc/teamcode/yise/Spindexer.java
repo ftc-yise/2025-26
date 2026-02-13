@@ -34,22 +34,28 @@ public class Spindexer {
     // Unified PID gains (tune these at runtime)
     // --- PIDF Gains & helpers (replace old kP/MAX_POWER etc. if present) ---
     // PID-ish tuning (CRServo-friendly)
-    private static final double kP = 0.0055
-            ;          // proportional gain
-    private static final double DEAD_BAND = 1.5;     // degrees
-    private static final double HOLD_POWER = 0.015;   // static friction compensation
-    private static final double MAX_POWER = 1;
-    private static final double kD = 0.00215; // start here
+    // --- control gains (tweak on-robot) ---
+    private static final double kP = 0.0038;       // proportional
+    private static final double kI = 0.00043;      // very small integrator (optional)
+    private static final double kD = 0.0015;      // derivative on filtered velocity (reduced)
 
-    // --- additional tunable control params (start values, tweak on-robot) ---
-    private static double kI = 0.0005;                 // small integrator (usually near 0 for CRServo)
-    private static final double VELOCITY_FILTER_ALPHA = 0.18; // 0..1, lower = smoother velocity
-    private static final double SLOW_ZONE_DEG = 30.0;  // start braking this far from target
-    private static final double MAX_SLOW_POWER = 0.40; // max power allowed while inside SLOW_ZONE
-    private static final double MIN_APPROACH_POWER = 0.03; // small nudge to prevent stall
-    private static final double INTEGRATOR_MAX = 0.15; // anti-windup clamp
+    private static final double DEAD_BAND = 2;      // degrees for arrival latch
+    private static final double MAX_POWER = 0.145;    // keep low for CRServo
+    private static final double SLOW_ZONE_DEG = 35.0; // where we begin scaling down
+    private static final double MAX_SLOW_POWER = 0.085; // hard cap inside slow zone; smaller -> less overshoot
+    private static final double MIN_APPROACH_POWER = 0.06; // DO NOT force a minimum; set 0
+    private static final double INTEGRATOR_MAX = 0.08; // reduce windup
     private static final double STOP_VELOCITY = 12.0;  // deg/s considered "stopped"
+
+    // smoothing / filtering
+    private static final double VELOCITY_FILTER_ALPHA = 0.12; // lower = smoother, 0..1
+    private static final double POWER_SMOOTH_ALPHA = 0.19;   // 0..1 (higher = smoother output)
+    private static final double SIGN_CHANGE_DAMP = 0.45;    // reduce command on sign flips (0..1)
+
+    // last-power filtered (new)
+    private double lastPowerFiltered = 0.0;
     private double integrator = 0.0;
+
 
 
     private double lastError = 0;
@@ -290,99 +296,116 @@ public class Spindexer {
         }
     }
 
+    private double legacyControl(double error) {
+        return kP * error;
+    }
+
     // --- UPDATE CONTROL ---
     private double computeSpindexerPower(double currentAngle, double targetAngle) {
-        // angle error (signed, -180..+180)
+        // signed angle error in degrees (-180..180)
         double error = smallestAngleError(targetAngle, currentAngle);
         double absError = Math.abs(error);
 
-        // ------------------ time & velocity estimation ------------------
+        // --- time & velocity estimate (filtered) ---
         long now = System.currentTimeMillis();
         double dt = (now - lastTimeMs) / 1000.0;
-        if (dt <= 1e-3) dt = 1e-3; // guard
+        if (dt <= 1e-3) dt = 1e-3;
 
-        // raw angular velocity (deg/s) measured between last samples (handles wrap)
-        double rawVel = smallestAngleError(currentAngle, lastAngle) / dt;
-
-        // filtered velocity (low-pass) to reduce noise and derivative kick
+        double rawVel = smallestAngleError(currentAngle, lastAngle) / dt; // deg/s
+        // low-pass velocity to reduce noise and derivative kick
         lastFilteredVelocity = VELOCITY_FILTER_ALPHA * lastFilteredVelocity + (1.0 - VELOCITY_FILTER_ALPHA) * rawVel;
 
-        // save for next call
+        // save for next iteration
         lastAngle = currentAngle;
         lastTimeMs = now;
 
-        // ------------------ integrator (optional) ------------------
-        // Only accumulate when reasonably far from zero to avoid windup on chatter
+        // --- integrator (small, clamped) ---
         if (absError > (DEAD_BAND * 2)) {
             integrator += error * dt;
-            // clamp integrator to avoid huge I-term
             integrator = Range.clip(integrator, -INTEGRATOR_MAX, INTEGRATOR_MAX);
         } else {
-            // small decay to remove residual I-term near target
-            integrator *= 0.8;
+            // decay integrator when close to avoid wind-up
+            integrator *= 0.75;
         }
 
-        // ------------------ arrival check ------------------
-        // if within deadband and almost stopped -> arrived
+        // --- arrival latch ---
         if (absError < DEAD_BAND && Math.abs(lastFilteredVelocity) < STOP_VELOCITY) {
             atTargetLatched = true;
-            // don't actively push across zero; hold with zero power (servo friction + small brake)
+            // return zero and keep integrator small
+            lastPowerFiltered = 0;
             return 0.0;
         }
         atTargetLatched = false;
 
-        // ------------------ base PID terms ------------------
+        // --- compute P/I/D terms (note D uses filtered velocity) ---
         double pTerm = kP * error;
         double iTerm = kI * integrator;
-        double dTerm = -kD * lastFilteredVelocity; // use neg sign because velocity is currentAngle - lastAngle
+        double dTerm = -kD * lastFilteredVelocity;
 
         double pid = pTerm + iTerm + dTerm;
 
-        // ------------------ zone logic ------------------
+        // --- zone logic (keep core math style but safer) ---
         double power;
 
         if (absError > SLOW_ZONE_DEG) {
-            // Far: full-fast move. Use a clipped PID that will essentially be full-power
-            // but we keep pid so a too-large D can still damp.
+            // Far: allow aggressive move, but use pid to damp extremes
             power = Range.clip(pid, -MAX_POWER, MAX_POWER);
-            // if PID is too small (tiny gains), force a fast move to avoid sluggishness:
-            if (Math.abs(power) < (0.6 * MAX_POWER)) {
+            // If pid ended up tiny (due to small gains), nudge toward full speed
+            if (Math.abs(power) < 0.5 * MAX_POWER) {
                 power = Math.signum(error) * 0.9 * MAX_POWER;
             }
         } else {
-            // Inside slow zone: progressively scale the PID output toward zero.
-            // Use a quadratic shaping so we slow faster near target.
+            // --- Slow zone shaping ---
             double frac = Math.max(0.0, Math.min(1.0, absError / SLOW_ZONE_DEG));
-            double shape = frac * frac; // quadratic
+            double shape = frac * frac;  // quadratic taper
 
             power = pid * shape;
 
-            // Ensure we can still overcome static friction (small nudge toward target)
-            if (Math.abs(power) < MIN_APPROACH_POWER) {
-                power = MIN_APPROACH_POWER * Math.signum(error);
-            }
-
-            // Cap the slow-zone power so braking is controllable
+            // Cap slow zone output
             power = Range.clip(power, -MAX_SLOW_POWER, MAX_SLOW_POWER);
 
-            // Additional damping: if velocity is large and heading toward the target,
-            // reduce power more aggressively to avoid overshoot.
-            if (Math.signum(error) == Math.signum(lastFilteredVelocity)) {
-                // moving away from target (velocity has same sign as error) -> be aggressive
-                double velScale = Math.min(1.0, Math.abs(lastFilteredVelocity) / 120.0); // 0..1
-                power *= (1.0 - 0.5 * velScale); // reduce up to 50% when very fast
+            // --- SAFE MINIMUM POWER LOGIC ---
+            // Apply minimum only if:
+            // 1) We are outside deadband
+            // 2) Velocity is not already moving toward target strongly
+            // 3) We are not about to reverse direction
+
+            boolean movingTowardTarget =
+                    Math.signum(error) == Math.signum(-lastFilteredVelocity);
+
+            boolean nearStop = Math.abs(lastFilteredVelocity) < STOP_VELOCITY;
+
+            if (absError > DEAD_BAND && nearStop) {
+                if (Math.abs(power) < MIN_APPROACH_POWER) {
+                    power = Math.signum(error) * MIN_APPROACH_POWER;
+                }
+            }
+
+            // Extra damping if moving fast
+            if (!nearStop) {
+                power *= 0.7;
             }
         }
 
-        // ------------------ final saturate & return ------------------
-        power = Range.clip(power, -MAX_POWER, MAX_POWER);
 
-        // populate telemetry (so you can see debug while tuning)
+        // --- prevent aggressive sign flips: if output sign differs from previous filtered,
+        // reduce magnitude so servo doesn't get large reverse steps ---
+        if (Math.signum(power) != Math.signum(lastPowerFiltered) && Math.abs(lastPowerFiltered) > 0.02) {
+            power = lastPowerFiltered * SIGN_CHANGE_DAMP + power * (1.0 - SIGN_CHANGE_DAMP);
+        }
+
+        // save PID terms for telemetry
         t.pidP = pTerm;
         t.pidI = iTerm;
         t.pidD = dTerm;
 
-        return power;
+        // final clip
+        power = Range.clip(power, -MAX_POWER, MAX_POWER);
+
+        // smooth the power (low-pass) so CRServo sees continuous commands
+        lastPowerFiltered = POWER_SMOOTH_ALPHA * lastPowerFiltered + (1.0 - POWER_SMOOTH_ALPHA) * power;
+
+        return lastPowerFiltered;
     }
 
     // ─────────────────────────────────────────────────────────────────────

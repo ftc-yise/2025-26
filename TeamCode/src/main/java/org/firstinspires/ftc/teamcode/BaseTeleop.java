@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.yise.DriveClass;
@@ -29,10 +30,10 @@ public class BaseTeleop extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "RightFrontDrive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "RightBackDrive");
 
-        leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
-        rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
+        leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
+        leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
+        rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
+        rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
 
         waitForStart();
         runtime.reset();
@@ -42,6 +43,19 @@ public class BaseTeleop extends LinearOpMode {
             // --- DRIVE & SPEED TOGGLE ---
             drive.handleSpeedToggle(gamepad1);
             drive.updateMotors(gamepad1, true);
+
+
+            // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
+            double forward   = 0; //-gamepad1.left_stick_x;  // Note: pushing stick forward gives negative value
+            double strafe =  0; //gamepad1.left_stick_y;
+            double turn     =  0; //gamepad1.right_stick_x;
+
+            // Combine the joystick requests for each axis-motion to determine each wheel's power.
+            // Set up a variable for each drive wheel to save the power level for telemetry.
+            double leftFrontPower  = forward + strafe + turn;
+            double rightFrontPower = forward - strafe - turn;
+            double leftBackPower   = forward - strafe + turn;
+            double rightBackPower  = forward + strafe - turn;
 
             // put your teleop code here
             if (gamepad1.right_trigger > 0.75) {
@@ -80,10 +94,10 @@ public class BaseTeleop extends LinearOpMode {
                 rightFrontDrive.setPower(1);
                 telemetry.addLine("=== right front drive ===");
             } else{
-                leftFrontDrive.setPower(0);
-                leftBackDrive.setPower(0);
-                rightBackDrive.setPower(0);
-                rightFrontDrive.setPower(0);
+                leftFrontDrive.setPower(leftFrontPower);
+                leftBackDrive.setPower(leftBackPower);
+                rightBackDrive.setPower(rightBackPower);
+                rightFrontDrive.setPower(rightFrontPower);
                 telemetry.addLine("=== nuthin ===");
             }
             telemetry.addData("red", floor.red());

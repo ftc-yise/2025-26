@@ -26,8 +26,9 @@ public class ShooterExecutionClass {
     private final ShooterClass shooter;
     private final ElapsedTime timer = new ElapsedTime();
     private final double LIFTER_MOVE_TIMEOUT = 4.2; // seconds
+    public int shots = 0;
 
-    private int shotsFired = 0;
+    public int shotsFired = 0;
     private int totalShots = 0;        // dynamically computed at cycle start
     public int currentSiloIndex = -1; // currently active silo
     public boolean jittered = false;
@@ -53,7 +54,7 @@ public class ShooterExecutionClass {
         spin.initSilos();
         // keep previous default init (optional)
         lifter.setPresetPositions(0.0, 1.0);
-        lifter.setCalibration(1.2, 0, 2.043, 1);
+        lifter.setCalibration(1.23, 0, 2.18, 1);
 
         // init plan to -1
         for (int i = 0; i < firingPlan.length; i++) firingPlan[i] = -1;
@@ -161,7 +162,7 @@ public class ShooterExecutionClass {
                     spindexer.setManual(0.0);
                     spindexer.enableSensorUpdates();
                     spindexer.goToSilo1();
-                    if (t > 1) {
+                    if (t > 1.5) {
                         timer.reset();
                         state = State.COMPLETE;
                     }
@@ -181,11 +182,11 @@ public class ShooterExecutionClass {
                 // If forced, accept looser tolerance and keep moving between silos
                 double angleErr = Math.abs(spindexer.getTelemetry().angleError);
                 if (timer.seconds() > 0.22) {
-                    if (angleErr < 3) {
+                    if (angleErr < 2.5) {
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
-                    } else if (timer.seconds() > 5) { // watchdog
+                    } else if (timer.seconds() > 7) { // watchdog
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
@@ -194,16 +195,16 @@ public class ShooterExecutionClass {
                 break;
 
             case SPIN_WAIT:
-                if (timer.seconds() > .35) {
+                if (timer.seconds() > .15) {
                     state = State.SPIN_UP_SHOOTER;
-                    spindexer.setNeutral();
                     timer.reset();
                 }
                 break;
 
             case SPIN_UP_SHOOTER:
                 if (shooter.getTelemetry().errorRPM < 150) {
-                        lifter.setUp();
+                    spindexer.setNeutral();
+                    lifter.setUp();
                         timer.reset();
                         state = State.FIRE_LIFT_UP;
                 }
@@ -211,7 +212,7 @@ public class ShooterExecutionClass {
 
             case FIRE_LIFT_UP:
                 if (lifter.isUp() || timer.seconds() > LIFTER_MOVE_TIMEOUT) {
-                    if (timer.seconds() > .2) {
+                    if (timer.seconds() > .1) {
                         lifter.setDown();
                         timer.reset();
                         state = State.FIRE_LIFT_DOWN;
@@ -223,6 +224,7 @@ public class ShooterExecutionClass {
                 // On forced mode we don't decrement totalShots; we only stop when user calls stopForcedCycle()
                 if (lifter.isDown() || timer.seconds() > (LIFTER_MOVE_TIMEOUT + 0.3)) {
                     shotsFired++;
+                    shots++;
 
                     // SAFETY: read current color at that silo BEFORE we possibly clear it.
                     Spindexer.BallColor firedColor = Spindexer.BallColor.NONE;
