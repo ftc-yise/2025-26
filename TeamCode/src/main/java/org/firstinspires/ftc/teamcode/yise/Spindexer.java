@@ -35,22 +35,22 @@ public class Spindexer {
     // --- PIDF Gains & helpers (replace old kP/MAX_POWER etc. if present) ---
     // PID-ish tuning (CRServo-friendly)
     // --- control gains (tweak on-robot) ---
-    private static final double kP = 0.0038;       // proportional
+    private static final double kP = 0.0070;       // proportional
     private static final double kI = 0.00043;      // very small integrator (optional)
     private static final double kD = 0.0015;      // derivative on filtered velocity (reduced)
 
-    private static final double DEAD_BAND = 2;      // degrees for arrival latch
-    private static final double MAX_POWER = 0.145;    // keep low for CRServo
-    private static final double SLOW_ZONE_DEG = 35.0; // where we begin scaling down
+    private static final double DEAD_BAND = 3;      // degrees for arrival latch
+    private static final double MAX_POWER = 0.277;    // keep low for CRServo
+    private static final double SLOW_ZONE_DEG = 60.0; // where we begin scaling down
     private static final double MAX_SLOW_POWER = 0.085; // hard cap inside slow zone; smaller -> less overshoot
-    private static final double MIN_APPROACH_POWER = 0.06; // DO NOT force a minimum; set 0
+    private static final double MIN_APPROACH_POWER = 0.0565;
     private static final double INTEGRATOR_MAX = 0.08; // reduce windup
-    private static final double STOP_VELOCITY = 12.0;  // deg/s considered "stopped"
+    private static final double STOP_VELOCITY = 28.0;  // deg/s considered "stopped"
 
     // smoothing / filtering
-    private static final double VELOCITY_FILTER_ALPHA = 0.12; // lower = smoother, 0..1
-    private static final double POWER_SMOOTH_ALPHA = 0.19;   // 0..1 (higher = smoother output)
-    private static final double SIGN_CHANGE_DAMP = 0.45;    // reduce command on sign flips (0..1)
+    private static final double VELOCITY_FILTER_ALPHA = 0.11; // lower = smoother, 0..1
+    private static final double POWER_SMOOTH_ALPHA = 0.55;   // 0..1 (higher = smoother output)
+    private static final double SIGN_CHANGE_DAMP = 0.2;    // reduce command on sign flips (0..1)
 
     // last-power filtered (new)
     private double lastPowerFiltered = 0.0;
@@ -296,114 +296,71 @@ public class Spindexer {
         }
     }
 
-    private double legacyControl(double error) {
-        return kP * error;
-    }
-
     // --- UPDATE CONTROL ---
+// Drop this into your Spindexer class (replace existing computeSpindexerPower)
     private double computeSpindexerPower(double currentAngle, double targetAngle) {
-        // signed angle error in degrees (-180..180)
+        // signed angle error in degrees (-180 .. +180)
         double error = smallestAngleError(targetAngle, currentAngle);
         double absError = Math.abs(error);
 
-        // --- time & velocity estimate (filtered) ---
+        // ---------- time & velocity ----------
         long now = System.currentTimeMillis();
         double dt = (now - lastTimeMs) / 1000.0;
         if (dt <= 1e-3) dt = 1e-3;
 
         double rawVel = smallestAngleError(currentAngle, lastAngle) / dt; // deg/s
-        // low-pass velocity to reduce noise and derivative kick
         lastFilteredVelocity = VELOCITY_FILTER_ALPHA * lastFilteredVelocity + (1.0 - VELOCITY_FILTER_ALPHA) * rawVel;
 
-        // save for next iteration
         lastAngle = currentAngle;
         lastTimeMs = now;
 
-        // --- integrator (small, clamped) ---
-        if (absError > (DEAD_BAND * 2)) {
-            integrator += error * dt;
-            integrator = Range.clip(integrator, -INTEGRATOR_MAX, INTEGRATOR_MAX);
-        } else {
-            // decay integrator when close to avoid wind-up
-            integrator *= 0.75;
-        }
-
-        // --- arrival latch ---
-        if (absError < DEAD_BAND && Math.abs(lastFilteredVelocity) < STOP_VELOCITY) {
+        // --------- arrival latch ----------
+        if (absError < DEAD_BAND) {
             atTargetLatched = true;
-            // return zero and keep integrator small
-            lastPowerFiltered = 0;
+            lastPowerFiltered = 0.0;
             return 0.0;
         }
         atTargetLatched = false;
 
-        // --- compute P/I/D terms (note D uses filtered velocity) ---
+        // --------- plain P term (core) ----------
         double pTerm = kP * error;
-        double iTerm = kI * integrator;
-        double dTerm = -kD * lastFilteredVelocity;
 
-        double pid = pTerm + iTerm + dTerm;
-
-        // --- zone logic (keep core math style but safer) ---
-        double power;
-
+        // --------- inside slow zone: taper P down so we approach gently ----------
+        double tapered;
         if (absError > SLOW_ZONE_DEG) {
-            // Far: allow aggressive move, but use pid to damp extremes
-            power = Range.clip(pid, -MAX_POWER, MAX_POWER);
-            // If pid ended up tiny (due to small gains), nudge toward full speed
-            if (Math.abs(power) < 0.5 * MAX_POWER) {
-                power = Math.signum(error) * 0.9 * MAX_POWER;
-            }
+            tapered = pTerm; // full P far away
         } else {
-            // --- Slow zone shaping ---
-            double frac = Math.max(0.0, Math.min(1.0, absError / SLOW_ZONE_DEG));
-            double shape = frac * frac;  // quadratic taper
-
-            power = pid * shape;
-
-            // Cap slow zone output
-            power = Range.clip(power, -MAX_SLOW_POWER, MAX_SLOW_POWER);
-
-            // --- SAFE MINIMUM POWER LOGIC ---
-            // Apply minimum only if:
-            // 1) We are outside deadband
-            // 2) Velocity is not already moving toward target strongly
-            // 3) We are not about to reverse direction
-
-            boolean movingTowardTarget =
-                    Math.signum(error) == Math.signum(-lastFilteredVelocity);
-
-            boolean nearStop = Math.abs(lastFilteredVelocity) < STOP_VELOCITY;
-
-            if (absError > DEAD_BAND && nearStop) {
-                if (Math.abs(power) < MIN_APPROACH_POWER) {
-                    power = Math.signum(error) * MIN_APPROACH_POWER;
-                }
-            }
-
-            // Extra damping if moving fast
-            if (!nearStop) {
-                power *= 0.7;
-            }
+            // square/taper: smoother near target
+            tapered = pTerm * 0.18;
         }
 
+        // --------- safe minimum nudge logic (only when near stopped and outside deadband) ----------
+        double out = tapered;
 
-        // --- prevent aggressive sign flips: if output sign differs from previous filtered,
-        // reduce magnitude so servo doesn't get large reverse steps ---
-        if (Math.signum(power) != Math.signum(lastPowerFiltered) && Math.abs(lastPowerFiltered) > 0.02) {
-            power = lastPowerFiltered * SIGN_CHANGE_DAMP + power * (1.0 - SIGN_CHANGE_DAMP);
+        boolean nearStop = Math.abs(lastFilteredVelocity) < STOP_VELOCITY;
+        // only apply min nudge if we are still moving toward target (not reversing)
+        boolean sameDirectionAsPrevious = Math.signum(out) == Math.signum(lastPowerFiltered) || Math.abs(lastPowerFiltered) < 1e-6;
+
+        if (absError > DEAD_BAND && nearStop && Math.abs(out) < MIN_APPROACH_POWER && sameDirectionAsPrevious) {
+            out = Math.signum(error) * MIN_APPROACH_POWER;
         }
 
-        // save PID terms for telemetry
+        // --------- protect against sudden sign flips (prevent hard reverse steps) ----------
+        if (Math.signum(out) != Math.signum(lastPowerFiltered) && Math.abs(lastPowerFiltered) > 0.02) {
+            // blend so we don't jolt the servo into reverse
+            out = lastPowerFiltered * SIGN_CHANGE_DAMP + out * (1.0 - SIGN_CHANGE_DAMP);
+        }
+
+        // clip to safe range
+        out = Range.clip(out, -MAX_POWER, MAX_POWER);
+
+        // final output smoothing for servo (prevents high-frequency command changes causing stutter)
+        lastPowerFiltered = POWER_SMOOTH_ALPHA * lastPowerFiltered + (1.0 - POWER_SMOOTH_ALPHA) * out;
+
+        // save P term values for telemetry
         t.pidP = pTerm;
-        t.pidI = iTerm;
-        t.pidD = dTerm;
-
-        // final clip
-        power = Range.clip(power, -MAX_POWER, MAX_POWER);
-
-        // smooth the power (low-pass) so CRServo sees continuous commands
-        lastPowerFiltered = POWER_SMOOTH_ALPHA * lastPowerFiltered + (1.0 - POWER_SMOOTH_ALPHA) * power;
+        t.pidI = 0.0; // no I used in this P-only variation (keep for telemetry format)
+        t.pidD = 0.0;
 
         return lastPowerFiltered;
     }

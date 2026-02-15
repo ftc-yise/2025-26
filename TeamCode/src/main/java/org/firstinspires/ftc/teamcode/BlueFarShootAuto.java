@@ -25,54 +25,53 @@ import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
-@Autonomous(name = "Far Shoot Auto", group = "Auto")
-public class FarShootAuto extends OpMode {
+@Autonomous(name = "[BLUE] Far Shoot Auto", group = "Auto")
+public class BlueFarShootAuto extends OpMode {
 
     // --- Paths & pathing ---
     public static class Paths {
         public PathChain[] paths;
-        int X_SHIFT = 2;
+        int X_SHIFT = 4;
 
         public Paths(Follower follower) {
             paths = new PathChain[3];
 
-            // Keep earlier entries if you need them (0..2), but we start at 3 in your runtime.
-            // CHANGES: split aggressive diagonals into gentler segments and add an 'approach' waypoint
-            // before entering the shooting area so the follower can decelerate & line up cleanly. 82.019, 8.449
             paths[0] = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                    new Pose(82.019 , 8.449),
-                    new Pose(89.957 - X_SHIFT, 67.040),
-                    new Pose(139.506 - X_SHIFT, 10.629),
-                    new Pose(143.725 - X_SHIFT, 61.415),
-                    new Pose(143.895 - X_SHIFT, 36.199),
-                    new Pose(136.219 - X_SHIFT, 7.494),
-                    new Pose(72.539 - X_SHIFT, 35.404),
-                    new Pose(129.456 - X_SHIFT, 2.158),
-                    new Pose(90 - X_SHIFT, 8.449)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                            new Pose(60.007, 7.288),
+                            new Pose(54.043 + X_SHIFT, 67.040),
+                            new Pose(4.494 + X_SHIFT, 10.629),
+                            new Pose(0.275 + X_SHIFT, 61.415),
+                            new Pose(1.766 + X_SHIFT, 24.812),
+                            new Pose(7.781 + X_SHIFT, 7.494),
+                            new Pose(54.000 + X_SHIFT, 7.532)
+                    ))
+                    // original was (0,0) → flipped becomes (180,180)
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            // subsequent paths unchanged but ensure their headings are small near endpoints
             paths[1] = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                    new Pose(90.000  - X_SHIFT, 8.449),
-                    new Pose(74.175 - X_SHIFT, 83.789),
-                    new Pose(73.819 - X_SHIFT, 77.214),
-                    new Pose(135.934 - X_SHIFT, 29.180),
-                    new Pose(142.058 - X_SHIFT, 65.776),
-                    new Pose(142.328 - X_SHIFT, 73.554),
-                    new Pose(141.956 - X_SHIFT, 54.422),
-                    new Pose(88.713 - X_SHIFT, 55.947),
-                    new Pose(82.142 - X_SHIFT, 91.552)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                            new Pose(54.000 + X_SHIFT, 7.532),
+                            new Pose(69.825 + X_SHIFT, 83.789),
+                            new Pose(70.181 + X_SHIFT, 77.214),
+                            new Pose(8.066 + X_SHIFT, 29.180),
+                            new Pose(1.942 + X_SHIFT, 65.776),
+                            new Pose(1.672 + X_SHIFT, 73.554),
+                            new Pose(2.044 + X_SHIFT, 54.422),
+                            new Pose(55.287 + X_SHIFT, 55.947),
+                            new Pose(61.858 + X_SHIFT, 91.552)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             paths[2] = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(82.142, 91.552), new Pose(124, 70)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                    .addPath(new BezierLine(
+                            new Pose(61.858, 91.552),
+                            new Pose(20.000, 70.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
-
         }
     }
 
@@ -87,29 +86,24 @@ public class FarShootAuto extends OpMode {
     private AutoState autoState = AutoState.FOLLOW_PATH;
 
     // --- Configuration ---
-    // Updated shooting paths per user request (we will use indices that match the
-    // modified path layout). The user asked to use paths 6 and 10 for shooting.
-
-    // fields
     private double lastZoneTriggerStart = 0.0;
     private final double SENSOR_HOLD_SECONDS = 0.18; // 180 ms
 
     private final int[] SHOOT_PATHS = {0, 1};      // firing-trigger paths
     private final int[] INTAKE_PATHS = {0, 1};
-    private final int[] WALL_ONLY_PATHS = {4};
+    private final int[] WALL_ONLY_PATHS = {2};
     private final boolean fireAtStart = true;
     private boolean startFinished = false;
-    private final double PATH_SETTLE_SECONDS = 0.5; // short settle after path arrival
-    private final double SHOOT_TIMEOUT_SECONDS = 20.0;
-    // color threshold for "white line" detection on floor sensors (blue channel)
-    private final int ZONE_BLUE_THRESHOLD = 1400;
+    private final double PATH_SETTLE_SECONDS = 1; // short settle after path arrival (mirrored from RED)
+    private final double SHOOT_TIMEOUT_SECONDS = 15; // mirrored from RED
+    private final int ZONE_BLUE_THRESHOLD = 1000; // mirrored from RED
 
     // --- Subsystems & hardware ---
     private Follower follower;
     private Paths paths;
     private boolean followerStarted = false;
     private boolean lastFollowerBusy = true;
-    private Timer pathTimer, opmodeTimer;
+    private Timer pathTimer, opmodeTimer, mmmmmTIME;
     private DriveClass drive;
     private ShooterClass shooter;
     private Spindexer spin;
@@ -135,9 +129,10 @@ public class FarShootAuto extends OpMode {
     private ElapsedTime shotRequestTimer = new ElapsedTime(); // used for shot timeout / timing
     private ElapsedTime waitTimer = new ElapsedTime(); // general purpose
 
-    // path index owned by this state machine
-    // user wanted to "remove paths 0..2" -> we'll start at index 3
-    private int pathIndex = -1;
+    // path index
+    private int pathIndex = 0;
+    private boolean[] shotDoneForPath;
+    private boolean startShotTriggered = false;
 
     // Zone-shooting flags & latches (one per sensor)
     private boolean blcLatched = false;
@@ -145,13 +140,16 @@ public class FarShootAuto extends OpMode {
     private boolean flcLatched = false;
     private boolean frcLatched = false;
 
-    // When true we are firing because a floor sensor indicated we're inside a permitted zone.
-    // During zone-shooting we allow movement but we won't advance to next path until shot count satisfied.
     private boolean zoneShootingActive = false;
     private double zoneShootingStartTime = 0.0;
     private final double ZONE_SHOOT_MAX_DURATION = 8; // seconds safety for zone shooting
 
-    // helpers
+    // --- NEW FIX FIELDS ---
+    // When true we will prevent zone-shoot from firing immediately after a pre-start shot.
+    // This gets set when we perform a pre-start shot and is cleared when we actually start following the first path.
+    private boolean skipZoneShootingOnce = false;
+
+    // helper
     private boolean isInArray(int[] arr, int v) {
         if (arr == null) return false;
         for (int x : arr) if (x == v) return true;
@@ -167,11 +165,8 @@ public class FarShootAuto extends OpMode {
         }
     }
 
-    // --- Triangles for shooting zones (as requested) ---
-    // Triangle 1: ((96,0),(72,24),(48,0))
-    // Triangle 2: ((0,144),(72,72),(144,144))
+    // Triangles for shooting zones
     private boolean pointInTriangle(double px, double py, double ax, double ay, double bx, double by, double cx, double cy) {
-        // barycentric technique
         double v0x = cx - ax;
         double v0y = cy - ay;
         double v1x = bx - ax;
@@ -195,9 +190,7 @@ public class FarShootAuto extends OpMode {
     }
 
     private boolean insideShootingZone(double x, double y) {
-        // triangle A
         if (pointInTriangle(x, y, 96+8, 0, 72+8, 24-8, 48-8, 0)) return true;
-        // triangle B
         if (pointInTriangle(x, y, 0, 144, 72+8, 72+8, 144, 144)) return true;
         return false;
     }
@@ -208,11 +201,12 @@ public class FarShootAuto extends OpMode {
         Parameters.autonomous = Parameters.AUTONOMOUS.YES;
         pathTimer = new Timer();
         opmodeTimer = new Timer();
+        mmmmmTIME = new Timer();
+        mmmmmTIME.resetTimer();
         opmodeTimer.resetTimer();
 
         follower = Constants.createFollower(hardwareMap);
-        // keep same starting pose but note we start at pathIndex = 3 (skipping 0..2)
-        follower.setStartingPose(new Pose(82.019, 8.449, Math.toRadians(0)));
+        follower.setStartingPose(new Pose(60.007, 7.288, Math.toRadians(180)));
         paths = new Paths(follower);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
@@ -221,7 +215,6 @@ public class FarShootAuto extends OpMode {
         led1 = new Ledclass(hardwareMap, "led1");
         wallright.setDirection(CRServo.Direction.REVERSE);
 
-        // floor sensors (4 corners)
         BackLeftCorner = hardwareMap.get(ColorSensor.class, "BLC");
         BackRightCorner = hardwareMap.get(ColorSensor.class, "BRC");
         FrontLeftCorner = hardwareMap.get(ColorSensor.class, "FLC");
@@ -238,14 +231,14 @@ public class FarShootAuto extends OpMode {
         autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
         patternMgr = new ShotPatternManager();
         autoShoot.setPatternManager(patternMgr);
+
+        shotDoneForPath = new boolean[paths.paths.length];
+        for (int i = 0; i < shotDoneForPath.length; i++) shotDoneForPath[i] = false;
+
     }
 
     @Override
     public void init_loop() {
-        // keep shooter warm for start
-        shooter.update(false, false, true);
-
-        // set limelight & pattern detection at prestart
         turret.limelight.pipelineSwitch(2);
         int tagId = turret.getID();
         ShotPatternManager.ShotPattern p = patternFromTag(tagId);
@@ -254,7 +247,6 @@ public class FarShootAuto extends OpMode {
             patternMgr.addPattern(p.sequence);
         }
 
-        // telemetry useful prestart
         hood.update();
         Hood.TelemetryPacket H = hood.getTelemetry();
         lifter.TelemetryPacket l = lifter.getTelemetry();
@@ -264,6 +256,17 @@ public class FarShootAuto extends OpMode {
         telemetry.addData("x", follower.getPose().getX());
         telemetry.addData("y", follower.getPose().getY());
         telemetry.addData("heading", follower.getPose().getHeading());
+
+        Spindexer.TelemetryPacket spina = spin.getTelemetry();
+        telemetry.addLine("=== SILOS ===");
+        Spindexer.BallColor[] silos = spina.siloColors;
+        for (int i = 0; i < silos.length; i++) {
+            String label = "Silo " + (i+1);
+            // Highlight the current silo
+            telemetry.addData(label, silos[i]);
+        }
+        spin.sampleSensorsNow();
+        spin.update();
         telemetry.update();
     }
 
@@ -272,21 +275,18 @@ public class FarShootAuto extends OpMode {
         shooter.update(false, false, true);
         opmodeTimer.resetTimer();
 
-        // Start at index 3 to "remove" paths 0..2 as requested
-        if (pathIndex < -1) pathIndex = -1;
+        if (pathIndex < 0) pathIndex = 0;
 
         followerStarted = false;
         lastFollowerBusy = true;
         autoState = AutoState.FOLLOW_PATH;
 
-        // limelight pipeline for alliance
         if (Parameters.allianceColor == Parameters.Color.BLUE) {
             turret.limelight.pipelineSwitch(3);
         } else {
             turret.limelight.pipelineSwitch(4);
         }
 
-        // If we want to shoot immediately before pathing, request a shot (pattern-based)
         if (fireAtStart) {
             turret.autoMode();
             turret.mode = Turret.turretMode.AUTO;
@@ -295,79 +295,106 @@ public class FarShootAuto extends OpMode {
             if (startPattern != null) patternMgr.addPattern(startPattern.sequence);
             autoState = AutoState.REQUEST_SHOT;
 
-            // we will allow the state machine to handle continuation
-        } else {
-            // start following pathIndex immediately (we start at 3)
+            // mark that this request was from the pre-start
+            startShotTriggered = true;
+
+            // IMPORTANT: set the skip flag so we don't zone-shoot before the first path begins
+            skipZoneShootingOnce = true;
+        }
+        else {
             if (pathIndex < paths.paths.length) {
                 follower.followPath(paths.paths[pathIndex]);
                 followerStarted = true;
             }
         }
 
-        // reset timers
         shotRequestTimer.reset();
         waitTimer.reset();
     }
 
     @Override
     public void loop() {
-        // --- Single authoritative updates for subsystems ---
+        shooter.update(false, false, true);
         autoShoot.update();     // ONLY once per loop
         hood.update();
         spin.sampleSensorsNow();
         spin.update();
         shooter.updateTelemetry();
         follower.update();
+        turret.autoMode();
+        turret.mode = Turret.turretMode.AUTO;
 
-        // check floor sensors and potentially trigger zone-shooting
-        checkFloorSensorsForZoneAndMaybeStartShooting();
+        if (mmmmmTIME.getElapsedTimeSeconds() > 0.75) {
 
-        // run single owner auto state machine
-        autoStateUpdate();
+            // check floor sensors and potentially trigger zone-shooting
+            checkFloorSensorsForZoneAndMaybeStartShooting();
 
-        if (startFinished) {
-            // Intake/wall logic for non-shooting behavior while following paths
-            if (autoState == AutoState.FOLLOW_PATH) {
-                if (isInArray(INTAKE_PATHS, pathIndex)) {
-                    intake.setPower(1);
-                    walleft.setPower(1);
-                    wallright.setPower(1);
-                    spin.setManual(0.08);
-                    turret.stop();
-                } else if (isInArray(WALL_ONLY_PATHS, pathIndex)) {
-                    intake.setPower(0);
+            // run single owner auto state machine
+            autoStateUpdate();
+
+            if (startFinished) {
+                if (autoState == AutoState.FOLLOW_PATH) {
+                    if (isInArray(INTAKE_PATHS, pathIndex)) {
+                        intake.setPower(1);
+                        walleft.setPower(1);
+                        wallright.setPower(1);
+                        spin.setManual(0.08);
+                        turret.stop();
+                    } else if (isInArray(WALL_ONLY_PATHS, pathIndex)) {
+                        intake.setPower(0);
+                        walleft.setPower(0.51);
+                        wallright.setPower(0.51);
+                    } else {
+                        intake.setPower(0);
+                        walleft.setPower(0);
+                        wallright.setPower(0);
+                    }
+                }
+
+                if (zoneShootingActive) {
+                    hood.update();
+                    autoShoot.update(); // ensure firing continues
+                    spin.update();
                     walleft.setPower(0.51);
                     wallright.setPower(0.51);
-                } else {
-                    // default
-                    intake.setPower(0);
-                    walleft.setPower(0);
-                    wallright.setPower(0);
+
+                    // If we've fired all 3 balls, stop zone-shooting and allow path advancement
+                    if (autoShoot.shotsFired >= 3) {
+                        // End zone shooting, cleanup
+                        zoneShootingActive = false;
+                        stopZoneShootingCleanup();
+
+                        // mark the path as shot so FSM won't request it again
+                        if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
+                            shotDoneForPath[pathIndex] = true;
+                        }
+
+                        // *** NEW: Advance to the next path immediately so it is not re-run ***
+                        pathIndex++;
+                        followerStarted = false;
+                        startFinished = true;
+
+                        // prevent overflow
+                        if (pathIndex >= paths.paths.length) {
+                            autoState = AutoState.DONE;
+                        }
+                    } else if ((opmodeTimer.getElapsedTimeSeconds() - zoneShootingStartTime) > ZONE_SHOOT_MAX_DURATION) {
+                        // safety timeout - abort zone shooting
+                        zoneShootingActive = false;
+                        autoShoot.stopForcedCycle();
+                        stopZoneShootingCleanup();
+                        // advance so we don't repeat same path
+                        if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
+                            shotDoneForPath[pathIndex] = true;
+                        }
+                        pathIndex++;
+                        followerStarted = false;
+                        if (pathIndex >= paths.paths.length) autoState = AutoState.DONE;
+                    }
                 }
             }
 
-            // If zone-shooting active, keep shooter/spindexer/turret updated and do not advance path index
-            if (zoneShootingActive) {
-                hood.update();
-                autoShoot.update(); // ensure firing continues
-                spin.update();
-                walleft.setPower(0.51);
-                wallright.setPower(0.51);
-
-                // If we've fired all 3 balls, stop zone-shooting and allow path advancement
-                if (autoShoot.shotsFired >= 3) {
-                    zoneShootingActive = false;
-                    stopZoneShootingCleanup();
-                } else if ((opmodeTimer.getElapsedTimeSeconds() - zoneShootingStartTime) > ZONE_SHOOT_MAX_DURATION) {
-                    // safety timeout - abort zone shooting
-                    zoneShootingActive = false;
-                    autoShoot.stopForcedCycle();
-                    stopZoneShootingCleanup();
-                }
-            }
-        }
-
-            // --- Telemetry (condensed, but thorough) ---
+            // telemetry (condensed)
             Hood.TelemetryPacket H = hood.getTelemetry();
             lifter.TelemetryPacket l = lifter.getTelemetry();
 
@@ -375,6 +402,7 @@ public class FarShootAuto extends OpMode {
             telemetry.addData("pathIndex", pathIndex);
             telemetry.addData("followerBusy", follower.isBusy());
             telemetry.addData("zoneShooting", zoneShootingActive);
+            telemetry.addData("skipZoneOnce", skipZoneShootingOnce);
             telemetry.addData("shotsFired", autoShoot.shotsFired);
             telemetry.addData("x", follower.getPose().getX());
             telemetry.addData("y", follower.getPose().getY());
@@ -409,42 +437,49 @@ public class FarShootAuto extends OpMode {
             telemetry.addData("Target", "%.1f°", H.targetAngle);
             telemetry.addData("Error", "%.1f°", H.angleError);
 
+            telemetry.addLine("=== SILOS ===");
+            Spindexer.BallColor[] silos = spina.siloColors;
+            for (int i = 0; i < silos.length; i++) {
+                String label = "Silo " + (i+1);
+                telemetry.addData(label, silos[i]);
+            }
+
             telemetry.update();
+        }
     }
 
     private void stopZoneShootingCleanup() {
-        // Stop feeding and restore normal behavior so state machine can advance
         walleft.setPower(0);
         wallright.setPower(0);
         lifter.setDown();
-        // re-enable spindexer sensor updates if they were disabled by forced cycle
         spin.enableSensorUpdates();
     }
 
     @Override
     public void stop() {
-        // clean up if desired
     }
 
     // ----------------- Auto state machine -----------------
     private void autoStateUpdate() {
 
-        // If zone-shooting active, prevent normal path advancement. We still update follower, allowing drive motion.
+        // If zone-shooting active, prevent normal path advancement.
         if (zoneShootingActive) {
-            // keep current pathIndex until zone shooting completes
             return;
         }
 
         switch (autoState) {
 
             case FOLLOW_PATH:
-                // Start path if not yet started
                 startFinished = true;
                 if (!followerStarted) {
                     if (pathIndex < paths.paths.length) {
-                        follower.followPath(paths.paths[pathIndex], 0.8, false);
+                        follower.followPath(paths.paths[pathIndex], 1, true);
                         followerStarted = true;
-                        // ensure lastFollowerBusy is true until follower reports no longer busy
+
+                        // We only wanted to suppress zone-shooting until the first path actually started.
+                        // Clear the skip flag once the path is actually started so future zone shooting works.
+                        skipZoneShootingOnce = false;
+
                         lastFollowerBusy = true;
                     } else {
                         autoState = AutoState.DONE;
@@ -454,24 +489,23 @@ public class FarShootAuto extends OpMode {
 
                 // Detect arrival edge: follower busy -> not busy
                 if (lastFollowerBusy && !follower.isBusy()) {
-                    // arrived at path endpoint, start settle timer
                     pathTimer.resetTimer();
                     lastFollowerBusy = false;
                 }
 
-                // while follower is busy keep waiting
                 if (follower.isBusy()) {
                     lastFollowerBusy = true;
                     return;
                 }
 
-                // Wait a little to settle after arrival
                 if (pathTimer.getElapsedTimeSeconds() < PATH_SETTLE_SECONDS) {
                     return;
                 }
 
                 // If this path is a shooting path, request shooting (pattern-based)
-                if (isInArray(SHOOT_PATHS, pathIndex)) {
+                if (isInArray(SHOOT_PATHS, pathIndex) &&
+                        pathIndex >= 0 && pathIndex < shotDoneForPath.length &&
+                        !shotDoneForPath[pathIndex]) {
                     autoState = AutoState.REQUEST_SHOT;
                     return;
                 }
@@ -486,63 +520,71 @@ public class FarShootAuto extends OpMode {
                 break;
 
             case REQUEST_SHOT:
-                // Prepare turret and pattern manager
-
-                // Load pattern based on tag if present (keeps behavior consistent with init_loop)
                 ShotPatternManager.ShotPattern p = patternFromTag(turret.getID());
                 if (p != null) {
                     patternMgr.clear();
                     patternMgr.addPattern(p.sequence);
                 }
 
-                // start shooter job (pattern-aware) — use startCycle so pattern manager is honored
                 autoShoot.startCycle();
-                // break follower control to keep robot still while pattern-based shooting occurs
-                // (BUT the user also wanted optionally to shoot while moving when in a zone - zone shooting uses forced cycle.)
+
+                // If not zone-shooting, break follower to keep robot still while pattern-based shooting occurs
                 if (!zoneShootingActive) {
                     follower.breakFollowing();
                     followerStarted = false;
                 }
-                // start shot timeout timer
+
                 shotRequestTimer.reset();
                 autoState = AutoState.WAIT_FOR_SHOT;
                 break;
 
             case WAIT_FOR_SHOT:
-                // maintain turret auto alignment while waiting/ firing
-                hood.setTarget(40);
+                hood.setTarget(75);
 
-                // keep walls on while shooting
                 walleft.setPower(0.51);
                 wallright.setPower(0.51);
 
-                // If shooter finished (job is done) -> proceed
                 if (autoShoot.shotsFired >= 3) {
-                    // stop feeding & reset actuators
                     walleft.setPower(0);
                     wallright.setPower(0);
                     lifter.setDown();
 
-                    pathIndex++;
-                    followerStarted = false;
-
-                    // short reset of timers for next path
-                    pathTimer.resetTimer();
-                    waitTimer.reset();
-
-                    if (pathIndex >= paths.paths.length) {
-                        autoState = AutoState.DONE;
-                    } else {
+                    if (startShotTriggered) {
+                        // This was the pre-start shot. DO NOT mark shotDoneForPath[pathIndex],
+                        // DO NOT advance pathIndex here. Instead return to FOLLOW_PATH so the
+                        // follower will execute path 0 and we can shoot it at its end.
+                        startShotTriggered = false;
                         autoState = AutoState.FOLLOW_PATH;
+                        followerStarted = false;
+                        pathTimer.resetTimer();
+                        waitTimer.reset();
+                        startFinished = true;
+
+                        // NOTE: skipZoneShootingOnce was already set in start(); keep it true
+                        // until the FOLLOW_PATH branch actually starts the path (we clear it there).
+                        return;
+                    } else {
+                        if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
+                            shotDoneForPath[pathIndex] = true;
+                        }
+
+                        pathIndex++;
+                        followerStarted = false;
+                        pathTimer.resetTimer();
+                        waitTimer.reset();
+
+                        if (pathIndex >= paths.paths.length) {
+                            autoState = AutoState.DONE;
+                        } else {
+                            autoState = AutoState.FOLLOW_PATH;
+                        }
+                        startFinished = true;
+                        return;
                     }
-                    startFinished = true;
-                    return;
                 }
 
-                // safety timeout: force stop after SHOOT_TIMEOUT_SECONDS
-                if (shotRequestTimer.seconds() > SHOOT_TIMEOUT_SECONDS) {
-                    // attempt a graceful stop
-                    autoShoot.stopForcedCycle(); // safe; if not forced this will move to COMPLETE eventually
+                if (shotRequestTimer.seconds() > SHOOT_TIMEOUT_SECONDS && lifter.isDown()) {
+                    autoShoot.stopForcedCycle();
                     walleft.setPower(0);
                     wallright.setPower(0);
                     lifter.setDown();
@@ -556,9 +598,7 @@ public class FarShootAuto extends OpMode {
                 break;
 
             case DONE:
-                // finished all paths
                 follower.breakFollowing();
-                // ensure systems in safe states
                 walleft.setPower(0);
                 wallright.setPower(0);
                 lifter.setDown();
@@ -579,9 +619,14 @@ public class FarShootAuto extends OpMode {
         boolean coarseInside = insideShootingZone(rx, ry);
 
         if (!coarseInside) {
-            // reset hold timer & latches if robot not in coarse zone
             lastZoneTriggerStart = 0;
             blcLatched = brcLatched = flcLatched = frcLatched = false;
+            return;
+        }
+
+        // If we were asked to skip zone-shooting once (pre-start shot), and we haven't started
+        // the first path yet, don't trigger zone shooting here.
+        if (skipZoneShootingOnce && pathIndex == 0 && !followerStarted) {
             return;
         }
 
@@ -597,7 +642,6 @@ public class FarShootAuto extends OpMode {
             return;
         }
 
-        // otherwise require a single sensor held high for SENSOR_HOLD_SECONDS
         boolean anyHigh = (blc > ZONE_BLUE_THRESHOLD) || (brc > ZONE_BLUE_THRESHOLD)
                 || (flc > ZONE_BLUE_THRESHOLD) || (frc > ZONE_BLUE_THRESHOLD);
 
@@ -612,7 +656,6 @@ public class FarShootAuto extends OpMode {
             lastZoneTriggerStart = 0;
         }
 
-        // clear latches on exit (keep for debug if you like)
         blcLatched = blc > ZONE_BLUE_THRESHOLD;
         brcLatched = brc > ZONE_BLUE_THRESHOLD;
         flcLatched = flc > ZONE_BLUE_THRESHOLD;
@@ -620,17 +663,19 @@ public class FarShootAuto extends OpMode {
     }
 
     private void startZoneShootingIfNeeded() {
-        // do nothing if already in zone shooting
         if (zoneShootingActive) return;
+        if (autoState != AutoState.FOLLOW_PATH) return;
+        if (autoShoot.isBusy()) return;
 
-        // Begin forced shooting so shooter can feed while robot continues to move.
-        // We will *not* allow the state machine to advance pathIndex while zoneShootingActive == true.
+        // double-check skip flag: don't zone-shoot if we were asked to skip once.
+        if (skipZoneShootingOnce && pathIndex == 0 && !followerStarted) return;
+
         zoneShootingActive = true;
         zoneShootingStartTime = opmodeTimer.getElapsedTimeSeconds();
-        // Disable spindexer sensor updates so forced cycle feeding isn't interrupted
         spin.disableSensorUpdates();
-        // Start forced mode so feeding occurs while follower updates keep running
-        autoShoot.startCycle(); // this sets forceShooting=true and allows continuous cycling
-        // Note: we'll stop the forced cycle when shotsFired >= 3 (or timeout)
+
+        // Use forced cycling — it will continue cycling until we call stopForcedCycle()
+        autoShoot.startForcedCycle();
     }
+
 }

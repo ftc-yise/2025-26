@@ -46,8 +46,7 @@ public class BallBotMainDrive extends LinearOpMode {
     private DcMotor intake = null;
     private CRServo walleft = null;
     private CRServo wallright = null;
-    private Servo footL = null;
-    private Servo footR = null;
+    private DcMotor foot = null;
 
     private ColorSensor middle = null;
     private ColorSensor backLeft = null;
@@ -107,8 +106,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
-        footL = hardwareMap.get(Servo.class, "footL");
-        footR = hardwareMap.get(Servo.class, "footR");
+        foot = hardwareMap.get(DcMotor.class, "foot");
         wallright.setDirection(CRServo.Direction.REVERSE);
         intake = hardwareMap.get(DcMotor.class, "intake");
 
@@ -316,7 +314,7 @@ public class BallBotMainDrive extends LinearOpMode {
             }
 
 
-            if ((turret.getID() == 20 || turret.getID() == 24)){
+            if ((turret.getID() == 20 || turret.getID() == 24 && !shooting)){
                 led1.setBlue();
                 led2.setBlue();
                 led3.setBlue();
@@ -325,6 +323,10 @@ public class BallBotMainDrive extends LinearOpMode {
                 led2.setOff();
                 led3.setOff();
                 runtime.reset();
+            } else if (shooting){
+                led1.setGreen();
+                led2.setGreen();
+                led3.setGreen();
             }
 
             // --- INTAKE & WALL WHEELS ---
@@ -374,14 +376,14 @@ public class BallBotMainDrive extends LinearOpMode {
                 }
             }
 
+
+
             // --- HOOD & FOOT ---
             if (gamepad1.dpad_down) {
-                footL.setPosition(-1);
-                footR.setPosition(1);
+                foot.setPower(0.557);
             }
             else if (gamepad1.dpad_up) {
-                footL.setPosition(1);
-                footR.setPosition(-1);
+                foot.setPower(-0.25);
             }
 
             if (gamepad2.dpad_up && !autoShoot.isBusy()) {
@@ -523,6 +525,7 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad1.a) {
                 patternMgr.clear();
             }
+
             spin.sampleSensorsNow();
             spin.update();             // 2️⃣ process logic
             Spindexer.TelemetryPacket spina = spin.getTelemetry(); // 3️⃣ snapshot
@@ -602,17 +605,18 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Blue", backRight.blue());
             telemetry.addData("Red", backRight.red());
             telemetry.addData("Green", backRight.green());
-            telemetry.update();
 //lift
-            /*
+
             telemetry.addLine("=== LIFT ===");
             telemetry.addData("pose", l.position);
             telemetry.addData("volt", l.voltage);
             telemetry.addData("err", l.error);
             telemetry.addData("mode", l.mode);
-//hood
+            telemetry.addData("up", lifter.isUp());
+            telemetry.addData("down", lifter.isDown());
 
-            telemetry.addLine("=== HOOD ===");
+//hood
+             telemetry.addLine("=== HOOD ===");
             telemetry.addData("Mode", H.mode);
             telemetry.addData("Voltage", "%.3f", H.voltage);
             telemetry.addData("Angle", "%.1f°", H.currentAngle);
@@ -693,7 +697,6 @@ public class BallBotMainDrive extends LinearOpMode {
         }
 
 
-*/      }
     }
 
     /**

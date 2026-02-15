@@ -25,7 +25,7 @@ public class ShooterExecutionClass {
     private final Spindexer spindexer;
     private final ShooterClass shooter;
     private final ElapsedTime timer = new ElapsedTime();
-    private final double LIFTER_MOVE_TIMEOUT = 4.2; // seconds
+    private final double LIFTER_MOVE_TIMEOUT = 1.2; // seconds
     public int shots = 0;
 
     public int shotsFired = 0;
@@ -54,7 +54,7 @@ public class ShooterExecutionClass {
         spin.initSilos();
         // keep previous default init (optional)
         lifter.setPresetPositions(0.0, 1.0);
-        lifter.setCalibration(1.23, 0, 2.18, 1);
+        lifter.setCalibration(1.41, 0, 2.5, 1);
 
         // init plan to -1
         for (int i = 0; i < firingPlan.length; i++) firingPlan[i] = -1;
@@ -83,6 +83,7 @@ public class ShooterExecutionClass {
                 currentSiloIndex = firingPlan[0];
                 // go to the first planned silo
                 goToSiloIndex(currentSiloIndex);
+                timer.reset();
                 state = State.MOVE_TO_SILO;
                 timer.reset();
                 return;
@@ -116,6 +117,7 @@ public class ShooterExecutionClass {
 
         // start normal cycle (original)
         shotsFired = 0;
+        timer.reset();
         state = State.MOVE_TO_SILO;
         moveToNextFullSilo();
         timer.reset();
@@ -135,6 +137,7 @@ public class ShooterExecutionClass {
         // Start from next (or 0) silo so mechanism cycles
         currentSiloIndex = 0;
         spindexer.goToSilo1();
+        timer.reset();
         state = State.MOVE_TO_SILO;
         timer.reset();
     }
@@ -162,7 +165,7 @@ public class ShooterExecutionClass {
                     spindexer.setManual(0.0);
                     spindexer.enableSensorUpdates();
                     spindexer.goToSilo1();
-                    if (t > 1.5) {
+                    if (t > 1.5 && lifter.isDown()) {
                         timer.reset();
                         state = State.COMPLETE;
                     }
@@ -181,12 +184,13 @@ public class ShooterExecutionClass {
             case MOVE_TO_SILO:
                 // If forced, accept looser tolerance and keep moving between silos
                 double angleErr = Math.abs(spindexer.getTelemetry().angleError);
-                if (timer.seconds() > 0.22) {
-                    if (angleErr < 2.5) {
+                if (timer.seconds() > 1.25) {
+                    if (angleErr < 1.8) {
                         spindexer.sampleSensorsNow();
+                        spindexer.setNeutral();
                         state = State.SPIN_WAIT;
                         timer.reset();
-                    } else if (timer.seconds() > 7) { // watchdog
+                    } else if (timer.seconds() > 5) { // watchdog
                         spindexer.sampleSensorsNow();
                         state = State.SPIN_WAIT;
                         timer.reset();
@@ -202,8 +206,7 @@ public class ShooterExecutionClass {
                 break;
 
             case SPIN_UP_SHOOTER:
-                if (shooter.getTelemetry().errorRPM < 150) {
-                    spindexer.setNeutral();
+                if (shooter.getTelemetry().errorRPM < 0) {
                     lifter.setUp();
                         timer.reset();
                         state = State.FIRE_LIFT_UP;
@@ -212,7 +215,7 @@ public class ShooterExecutionClass {
 
             case FIRE_LIFT_UP:
                 if (lifter.isUp() || timer.seconds() > LIFTER_MOVE_TIMEOUT) {
-                    if (timer.seconds() > .1) {
+                    if (timer.seconds() > .18) {
                         lifter.setDown();
                         timer.reset();
                         state = State.FIRE_LIFT_DOWN;
@@ -256,7 +259,7 @@ public class ShooterExecutionClass {
                     }
 
                     if (!forceShooting) {
-                        if (shotsFired >= totalShots) {
+                        if (shotsFired >= totalShots && lifter.isDown()) {
                             state = State.COMPLETE;
                         } else {
                             state = State.NEXT_SILO;
