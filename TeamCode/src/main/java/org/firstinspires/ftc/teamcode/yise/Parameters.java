@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode.yise;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.teamcode.yise.Spindexer;
-
 
 @TeleOp(name="Game Values (RUN THIS EVERY MATCH)", group="Necessity")
 public class Parameters extends LinearOpMode {
@@ -11,16 +9,16 @@ public class Parameters extends LinearOpMode {
         RED,
         BLUE
     }
-    public enum Upacreek {
+    public enum AUTONOMOUS {
         YES,
         NO
     }
 
-    public static double spinLocation;
+    public static double spinLocation = 240;
 
 
     public static Color allianceColor;
-    public static Upacreek upacreek;
+    public static AUTONOMOUS autonomous;
 
     public static double WAIT;
     public boolean xReleased;
@@ -66,16 +64,8 @@ public class Parameters extends LinearOpMode {
             }
         }
 
-        while (!gamepad1.a && !gamepad1.b) {
-            telemetry.addLine("upacreek \n");
-            telemetry.addLine("X - yes \n O - no");
-            telemetry.update();
+        while (gamepad1.y){
 
-            if (gamepad1.a) {
-                upacreek = Upacreek.YES;
-            } else if (gamepad1.b) {
-                upacreek = Upacreek.NO;
-            }
         }
 
         while (!gamepad1.y) {
@@ -87,6 +77,7 @@ public class Parameters extends LinearOpMode {
 
             if (gamepad1.y) {
                 spinLocation = spin.getTelemetry().currentAngle;
+                spin.initSilos();
             }
         }
 

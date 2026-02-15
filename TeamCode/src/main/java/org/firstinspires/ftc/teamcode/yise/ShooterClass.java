@@ -31,7 +31,7 @@ public class ShooterClass {
     // ======================================================
     // PIDF (REV VELOCITY CONTROLLER)
     // ======================================================
-    private double kP = 0.0052;
+    private double kP = 0.0082;
     private double kI = 0.00;
     private double kD = 0.000;
     private double kF = BASE_F;
@@ -48,10 +48,10 @@ public class ShooterClass {
     // ======================================================
     // READY-TO-FIRE THRESHOLDS (RPM ERROR)
     // ======================================================
-    private static final double READY_LOOSE   = 250;
-    private static final double READY_NORMAL  = 150;
-    private static final double READY_TIGHT   = 75;
-    private static final double READY_SNIPER  = 40;
+    private static final double READY_LOOSE   = 150;
+    private static final double READY_NORMAL  = 75;
+    private static final double READY_TIGHT   = 40;
+    private static final double READY_SNIPER  = 20;
 
     // ======================================================
     // MODES
@@ -160,7 +160,7 @@ public class ShooterClass {
                 break;
 
             case IDLE:
-                targetRPM = 3000;
+                targetRPM = 3250;
                 break;
 
             case LOW:
@@ -168,7 +168,7 @@ public class ShooterClass {
                 break;
 
             case FULL:
-                targetRPM = 4250;
+                targetRPM = 3750;
                 break;
         }
 
@@ -190,7 +190,7 @@ public class ShooterClass {
 
         // Read velocity
         double velocityTicks = shooter.getVelocity();
-        currentRPM = ((velocityTicks * 60.0) / TICKS_PER_REV) * (1.105);
+        currentRPM = (((velocityTicks * 60.0) / TICKS_PER_REV) * (1.105) * 0.923076) ;
         rpmError = targetRPM - currentRPM;
 
         // Spin-up profiling
@@ -214,7 +214,7 @@ public class ShooterClass {
         double targetTicksPerSec =
                 (targetRPM * TICKS_PER_REV) / 60.0;
 
-        shooter.setVelocity(targetTicksPerSec);
+        shooter.setVelocity(targetTicksPerSec * 1.04651162790697674418604651162791);
     }
 
     // ======================================================
@@ -252,7 +252,7 @@ public class ShooterClass {
     // ======================================================
     // TELEMETRY
     // ======================================================
-    private void updateTelemetry() {
+    public void updateTelemetry() {
         t.mode = mode;
         t.targetRPM = targetRPM;
         t.currentRPM = currentRPM;

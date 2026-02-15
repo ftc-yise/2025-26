@@ -36,6 +36,7 @@ public class BallBotMainDrive extends LinearOpMode {
     private boolean modeTogglePressed = false;
 
     private static final int LEFT_LIMIT = -1370;
+    public boolean once = true;
     private static final int CENTER_TARGET = -685;
     private static final int TOLERANCE = 10;
     private boolean shooting = false;
@@ -45,17 +46,24 @@ public class BallBotMainDrive extends LinearOpMode {
     private DcMotor intake = null;
     private CRServo walleft = null;
     private CRServo wallright = null;
-    private Servo footL = null;
-    private Servo footR = null;
+    private DcMotor foot = null;
 
     private ColorSensor middle = null;
     private ColorSensor backLeft = null;
     private ColorSensor backRight = null;
+    private ColorSensor BRC = null;
+    private ColorSensor BLC = null;
+    private ColorSensor FLC = null;
+    private ColorSensor FRC = null;
 
     public Ledclass led1;
     public Ledclass led2;
     public Ledclass led3;
-
+    // edge detectors for pattern-vs-forced behavior
+    private boolean prevA = false;
+    private boolean prevX = false;
+    boolean a;
+    boolean x;
     private final ElapsedTime runtime = new ElapsedTime();
     private final ElapsedTime logTimer = new ElapsedTime();
     private PrintWriter logWriter = null;
@@ -63,18 +71,30 @@ public class BallBotMainDrive extends LinearOpMode {
     private double logInterval = 0.05;
     public double time = runtime.seconds();
 
+    private ShotPatternManager.ShotPattern patternFromTag(int tagId) {
+        switch (tagId) {
+            case 21: return ShotPatternManager.ShotPattern.GPP;
+            case 22: return ShotPatternManager.ShotPattern.PGP;
+            case 23: return ShotPatternManager.ShotPattern.PPG;
+            default: return null;
+        }
+    }
+    private ShotPatternManager.ShotPattern activePattern = null;
     boolean firstRun = true;
     Turret.turretAlliance alliance = Turret.turretAlliance.RED;
 
     @Override
     public void runOpMode() throws InterruptedException {
         DriveClass drive = new DriveClass(hardwareMap);
+        ShotPatternManager patternMgr = new ShotPatternManager();
         ShooterClass shooter = new ShooterClass(hardwareMap);
         Spindexer spin = new Spindexer(hardwareMap);
         Hood hood = new Hood(hardwareMap);
         lifter lifter = new lifter(hardwareMap);
-        ShotPatternManager patternMgr = new ShotPatternManager();
-        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, lifter);
+        ShooterExecutionClass autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        autoShoot.setPatternManager(patternMgr);
+        Parameters parem = new Parameters();
+        parem.autonomous = Parameters.AUTONOMOUS.NO;
 
         if (Parameters.allianceColor == Parameters.Color.RED) {
             alliance = Turret.turretAlliance.RED;
@@ -86,21 +106,27 @@ public class BallBotMainDrive extends LinearOpMode {
 
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
-        footL = hardwareMap.get(Servo.class, "footL");
-        footR = hardwareMap.get(Servo.class, "footR");
+        foot = hardwareMap.get(DcMotor.class, "foot");
         wallright.setDirection(CRServo.Direction.REVERSE);
         intake = hardwareMap.get(DcMotor.class, "intake");
 
         middle = hardwareMap.get(ColorSensor.class, "middlecolorsensor");
         backLeft = hardwareMap.get(ColorSensor.class, "BLcolorsensor");
         backRight = hardwareMap.get(ColorSensor.class, "BRcolorsensor");
+        BLC = hardwareMap.get(ColorSensor.class, "BLC");
+        BRC = hardwareMap.get(ColorSensor.class, "BRC");
+        FLC = hardwareMap.get(ColorSensor.class, "FLC");
+        FRC = hardwareMap.get(ColorSensor.class, "FRC");
 
         led1 = new Ledclass(hardwareMap, "led1");
         led2 = new Ledclass(hardwareMap, "led2");
         led3 = new Ledclass(hardwareMap, "led3");
 
         hood.stop();
-        spin.goToSilo1();
+
+        spin.initSilos();
+
+        spin.goToSilo2();
         lifter.setDown();
 
         waitForStart();
@@ -119,23 +145,176 @@ public class BallBotMainDrive extends LinearOpMode {
             drive.handleSpeedToggle(gamepad1);
             drive.updateMotors(gamepad1, false);
 
+
+            // --- PATTERN vs FORCED SHOOTING ---
+// Behavior:
+//  - On button EDGE (press), try pattern-aware startCycle() if the pattern can be satisfied.
+//  - If pattern cannot be satisfied, start forced-cycle while button is HELD.
+//  - If neither button held and we were forcing, stopForcedCycle().
+
+            if (!a && !x && gamepad2.a && !prevX && !prevA) {
+                a = true;
+                shooting = true;
+            } else if (!a && !x && gamepad2.x && !prevX && !prevA) {
+                x = true;
+                shooting = true;
+            }
+
+            if (!gamepad2.a && autoShoot.shots > 2) {
+                a = false;
+                //autoShoot.shots = 0;
+                shooting = false;
+            }
+            if (!gamepad2.x && autoShoot.shots > 2) {
+                x = false;
+                //autoShoot.shots = 0;
+                shooting = false;
+            }
+
+            if (!a && !x && !gamepad2.x && !prevX && !prevA && !gamepad2.a && autoShoot.shots >= 3){
+                autoShoot.shots = 0;
+            }
+
+// --- A button (high-goal) ---
+            if (a && !prevA) {
+                // edge: attempt pattern-aware cycle if possible
+                if (canSatisfyPattern(patternMgr, spin) && !autoShoot.isBusy()) {
+                    shooter.update(false, false, true);
+                    hood.setTarget(75);
+                    autoShoot.startCycle();
+                } else {
+                    // pattern not satisfiable on-press -> start forced cycling while held
+                    shooter.update(false, false, true);
+                    hood.setTarget(75);
+                    if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                        autoShoot.startForcedCycle();
+                    }
+                }
+            } else if (a) {
+                // held: ensure forced mode is active
+                shooter.update(false, false, true);
+                hood.setTarget(75);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            }
+
+// --- X button (lower-goal) ---
+            if (x && !prevX) {
+                // edge: attempt pattern-aware cycle if possible
+                if (canSatisfyPattern(patternMgr, spin) && !autoShoot.isBusy()) {
+                    shooter.update(false, true, false);
+                    hood.setTarget(26);
+                    autoShoot.startCycle();
+                } else {
+                    // pattern not satisfiable on-press -> start forced cycling while held
+                    shooter.update(false, true, false);
+                    hood.setTarget(26);
+                    if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                        autoShoot.startForcedCycle();
+                    }
+                }
+            } else if (x) {
+                // held: ensure forced mode is active
+                shooter.update(false, true, false);
+                hood.setTarget(26);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            }
+
+// If neither button is currently held, stop forced mode if it was active
+            if (!a && !x && autoShoot.forceShooting) {
+                autoShoot.stopForcedCycle();
+            }
+
+// Always update shooter state machine once per loop
+            autoShoot.update();
+
+// update previous edge flags for next loop
+            prevA = a;
+            prevX = x;
+
+            /*
             // --- SHOOTING & SPINDEXOR ---
             if (gamepad2.a && !autoShoot.isBusy()) {
                 shooter.update(false, false, true);
-                hood.setTarget(60); // e.g. 42.0
+                hood.setTarget(40);
+
+                if (activePattern != null) {
+                    patternMgr.clear();
+                    patternMgr.addPattern(activePattern.sequence);
+                }
+
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo1();
-            } else if (gamepad2.x && !autoShoot.isBusy()){
+            }
+            else if (gamepad2.x && !autoShoot.isBusy()){
                 shooter.update(false, true, false);
                 hood.setTarget(15); // e.g. 0
+                if (activePattern != null) {
+                    patternMgr.clear();
+                    patternMgr.addPattern(activePattern.sequence);
+                }
+
                 autoShoot.startCycle();
                 shooting = true;
                 //spin.goToSilo2();
             }
             autoShoot.update();
+            */
+            /*
+            // --- SHOOTING & SPINDEXOR (forced override when holding A or X) ---
+            if (gamepad2.a) {
+                // start forced-fire if not already
+                shooter.update(false, false, true);    // shooter high goal
+                hood.setTarget(40);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            } else if (gamepad2.x) {
+                shooter.update(false, true, false);    // shooter lower goal
+                hood.setTarget(15);
+                if (!autoShoot.forceShooting && !autoShoot.isBusy()) {
+                    autoShoot.startForcedCycle();
+                }
+            } else {
+                // if neither held, and we're in forced-mode, stop forced mode
+                if (autoShoot.forceShooting) {
+                    autoShoot.stopForcedCycle();
+                }
+                // normal idle behavior handled elsewhere
+            }
+            autoShoot.update();
+            */
 
-            if ((turret.getID() == 20 || turret.getID() == 24)){
+            //vision/pattern things
+
+            if (gamepad1.y) {
+                turret.limelight.pipelineSwitch(2);
+                turret.runto(430); // keep this per your request
+
+                int tagId = turret.getID();
+                ShotPatternManager.ShotPattern p = patternFromTag(tagId);
+                if (p != null) {
+                    patternMgr.clear();
+                    patternMgr.addPattern(p.sequence);
+                }
+
+            }
+            else {
+                if (Parameters.allianceColor == Parameters.Color.RED) {
+                    alliance = Turret.turretAlliance.RED;
+                    turret.limelight.pipelineSwitch(4);
+                } else {
+                    alliance = Turret.turretAlliance.BLUE;
+                    turret.limelight.pipelineSwitch(3);
+                }
+            }
+
+
+            if ((turret.getID() == 20 || turret.getID() == 24 && !shooting)){
                 led1.setBlue();
                 led2.setBlue();
                 led3.setBlue();
@@ -144,42 +323,67 @@ public class BallBotMainDrive extends LinearOpMode {
                 led2.setOff();
                 led3.setOff();
                 runtime.reset();
+            } else if (shooting){
+                led1.setGreen();
+                led2.setGreen();
+                led3.setGreen();
             }
 
             // --- INTAKE & WALL WHEELS ---
             if (gamepad1.right_trigger > 0.75 && !shooting) {
                 intake.setPower(1);
-                walleft.setPower(1);
-                wallright.setPower(1);
-                spin.setManual(.1);
-            } else if (gamepad1.left_trigger > .75 && !shooting) {
-                intake.setPower(-.6);
+                led1.setBlue();
+
                 walleft.setPower(1);
                 wallright.setPower(1);
                 spin.setManual(.2);
+                once = true;
+
+            } else if (gamepad1.left_trigger > .75 && !shooting) {
+                intake.setPower(-1);
+                walleft.setPower(-1);
+                wallright.setPower(-1);
+                //spin.setManual(.6);
+                once = true;
             } else if (gamepad1.right_bumper && !shooting) {
                 intake.setPower(-.6);
                 walleft.setPower(-1);
                 wallright.setPower(-1);
                 spin.setManual(0);
+                once = true;
+            } else if (gamepad2.dpad_right){
+                spin.setManual(0.045);
+                once = true;
+            } else if (gamepad2.dpad_left){
+                spin.setManual(-0.065);
+                once = true;
             } else {
                 intake.setPower(0);
-                walleft.setPower(0);
-                wallright.setPower(0);
-                if (!autoShoot.isBusy()) {
-                    spin.setNeutral();
+                walleft.setPower(0.25);
+                wallright.setPower(0.25);
+                if (!autoShoot.isBusy() && gamepad1.right_trigger < 0.75 && gamepad1.left_trigger < 0.75) {
+                    if (gamepad2.right_stick_button && gamepad2.left_stick_button){
+                        Parameters.spinLocation = spin.getTelemetry().currentAngle;
+                        spin.initSilos();
+                    }
+
+                    if (once) {
+                        lifter.setDown();
+                        once = false;
+                        spin.setNeutral();
                         shooting = false;
+                    }
                 }
             }
 
+
+
             // --- HOOD & FOOT ---
             if (gamepad1.dpad_down) {
-                footL.setPosition(-1);
-                footR.setPosition(1);
+                foot.setPower(0.557);
             }
             else if (gamepad1.dpad_up) {
-                footL.setPosition(1);
-                footR.setPosition(-1);
+                foot.setPower(-0.25);
             }
 
             if (gamepad2.dpad_up && !autoShoot.isBusy()) {
@@ -192,17 +396,6 @@ public class BallBotMainDrive extends LinearOpMode {
                 lifter.setDown();
                 shooting = true;
             }
-
-
-            if (gamepad2.right_bumper && !autoShoot.isBusy()) {
-                spin.setManual(0.09);
-                shooting = true;
-            }
-            else if (gamepad2.left_bumper && !autoShoot.isBusy()) {
-                spin.setManual(-0.09);
-                shooting = true;
-            }
-
 
             // =========================================================
             // --- TURRET SYSTEM (INTEGRATED STATE MACHINE) ---
@@ -333,6 +526,9 @@ public class BallBotMainDrive extends LinearOpMode {
                 patternMgr.clear();
             }
 
+            spin.sampleSensorsNow();
+            spin.update();             // 2️⃣ process logic
+            Spindexer.TelemetryPacket spina = spin.getTelemetry(); // 3️⃣ snapshot
             //telemetry getter
             DriveClass.DriveTelemetry d = drive.getDriveTelemetry();
             // --- Update spindexer & autoShoot ---
@@ -340,8 +536,10 @@ public class BallBotMainDrive extends LinearOpMode {
             Hood.TelemetryPacket H = hood.getTelemetry();
             lifter.TelemetryPacket l = lifter.getTelemetry();
 
+
 // --- TELEMETRY ---
 // SHOOTER
+            shooter.updateTelemetry();
             ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
             telemetry.addLine("=== SHOOTER ===");
             telemetry.addData("Mode", s.mode);
@@ -364,21 +562,23 @@ public class BallBotMainDrive extends LinearOpMode {
 
 // SPINDEXER
             telemetry.addLine("=== SPINDEXER ===");
-            spin.sampleSensorsNow();
-            spin.update();             // 2️⃣ process logic
-            Spindexer.TelemetryPacket spina = spin.getTelemetry(); // 3️⃣ snapshot
             telemetry.addData("Mode", spina.mode);
             telemetry.addData("Voltage", "%.3f", spina.voltage);
             telemetry.addData("Angle", "%.1f°", spina.currentAngle);
             telemetry.addData("Target", "%.1f°", spina.targetAngle);
             telemetry.addData("Error", "%.1f°", spina.angleError);
             telemetry.addData("Power", "%.2f", spina.appliedPower);
+            telemetry.addData("A", a);
+            telemetry.addData("X", x);
+            telemetry.addData("shots", autoShoot.shots);
 
 // TURRET
             telemetry.addLine("=== TURRET ===");
             telemetry.addData("Mode", turret.mode);
             telemetry.addData("Power", turret.turretPower);
             telemetry.addData("pose", turret.getPose());
+            telemetry.addData("id", turret.getID());
+            telemetry.addData("pipeline", turret.limelight.getStatus().getPipelineIndex());
 
 // SILOS
             telemetry.addLine("=== SILOS ===");
@@ -412,15 +612,39 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("volt", l.voltage);
             telemetry.addData("err", l.error);
             telemetry.addData("mode", l.mode);
-//hood
+            telemetry.addData("up", lifter.isUp());
+            telemetry.addData("down", lifter.isDown());
 
-            telemetry.addLine("=== HOOD ===");
+//hood
+             telemetry.addLine("=== HOOD ===");
             telemetry.addData("Mode", H.mode);
             telemetry.addData("Voltage", "%.3f", H.voltage);
             telemetry.addData("Angle", "%.1f°", H.currentAngle);
             telemetry.addData("Target", "%.1f°", H.targetAngle);
             telemetry.addData("Error", "%.1f°", H.angleError);
             telemetry.addData("Power", "%.2f", H.appliedPower);
+
+           //floor sensors
+            telemetry.addLine("=== FLOOR SENSORS ===");
+            telemetry.addLine("BLC");
+            telemetry.addData("Blue", BLC.blue());
+            telemetry.addData("Red", BLC.red());
+            telemetry.addData("Green", BLC.green());
+
+            telemetry.addLine("BRC");
+            telemetry.addData("Blue", BRC.blue());
+            telemetry.addData("Red", BRC.red());
+            telemetry.addData("Green", BRC.green());
+
+            telemetry.addLine("FRC");
+            telemetry.addData("Blue", FRC.blue());
+            telemetry.addData("Red", FRC.red());
+            telemetry.addData("Green", FRC.green());
+
+            telemetry.addLine("FLC");
+            telemetry.addData("Blue", FLC.blue());
+            telemetry.addData("Red", FLC.red());
+            telemetry.addData("Green", FLC.green());
             telemetry.update();
 
             if (logWriter != null && logTimer.seconds() >= 0.1) {
@@ -473,7 +697,44 @@ public class BallBotMainDrive extends LinearOpMode {
         }
 
 
-
     }
+
+    /**
+     * Returns true if the queued pattern (patternMgr.snapshot()) can be satisfied
+     * by the current spindexer silo colors without reusing silos.
+     */
+    private boolean canSatisfyPattern(ShotPatternManager patternMgr, Spindexer spin) {
+        if (patternMgr == null || !patternMgr.hasShots()) return false;
+
+        Spindexer.BallColor[] queued = patternMgr.snapshot();
+        // count contiguous queued entries at front
+        int queuedCount = 0;
+        for (int i = 0; i < queued.length; i++) {
+            if (queued[i] == Spindexer.BallColor.NONE) break;
+            queuedCount++;
+        }
+        if (queuedCount == 0) return false;
+
+        Spindexer.TelemetryPacket spx = spin.getTelemetry();
+        Spindexer.BallColor[] silos = spx.siloColors;
+        boolean[] used = new boolean[silos.length];
+
+        for (int q = 0; q < queuedCount; q++) {
+            Spindexer.BallColor desired = queued[q];
+            int found = -1;
+            for (int s = 0; s < silos.length; s++) {
+                if (!used[s] && silos[s] == desired) {
+                    found = s;
+                    break;
+                }
+            }
+            if (found == -1) {
+                return false; // cannot satisfy this queued color in order
+            }
+            used[found] = true;
+        }
+        return true;
+    }
+
 
 }
