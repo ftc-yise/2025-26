@@ -31,6 +31,7 @@ public class BallBotMainDrive extends LinearOpMode {
     // --- Turret Logic Variables ---
     private enum SnapState { INACTIVE, SNAPPING_LEFT, PUSHING_LEFT, SNAPPING_RIGHT, PUSHING_RIGHT, GOING_HOME, HOMING_ROUTINE }
     private SnapState currentSnapState = SnapState.INACTIVE;
+    private boolean dpad = false;
     private ElapsedTime homingTimer = new ElapsedTime();
     private ElapsedTime snapTimer = new ElapsedTime();
     private boolean modeTogglePressed = false;
@@ -357,7 +358,7 @@ public class BallBotMainDrive extends LinearOpMode {
             } else if (gamepad2.dpad_left){
                 spin.setManual(-0.065);
                 once = true;
-            } else {
+            } else if (!dpad){
                 intake.setPower(0);
                 walleft.setPower(0.25);
                 wallright.setPower(0.25);
@@ -379,8 +380,15 @@ public class BallBotMainDrive extends LinearOpMode {
 
 
             // --- HOOD & FOOT ---
-            if (gamepad1.dpad_down) {
+            if (gamepad1.dpad_down){
+            dpad = true;
+            autoShoot.dpad = true;
+            }
+            if (dpad) {
                 foot.setPower(0.557);
+                shooter.update(true,false,false);
+                walleft.setPower(0);
+                wallright.setPower(0);
             }
             else if (gamepad1.dpad_up) {
                 foot.setPower(-0.25);
@@ -529,6 +537,7 @@ public class BallBotMainDrive extends LinearOpMode {
             spin.sampleSensorsNow();
             spin.update();             // 2️⃣ process logic
             Spindexer.TelemetryPacket spina = spin.getTelemetry(); // 3️⃣ snapshot
+            /*
             //telemetry getter
             DriveClass.DriveTelemetry d = drive.getDriveTelemetry();
             // --- Update spindexer & autoShoot ---
@@ -694,7 +703,8 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("LOG", "Saved");
             telemetry.addData("File", logFilePath);
             telemetry.update();
-        }
+        */}
+
 
 
     }

@@ -299,7 +299,7 @@ public class BlueFarShootAuto extends OpMode {
             startShotTriggered = true;
 
             // IMPORTANT: set the skip flag so we don't zone-shoot before the first path begins
-            skipZoneShootingOnce = true;
+            skipZoneShootingOnce = false;
         }
         else {
             if (pathIndex < paths.paths.length) {
@@ -314,6 +314,12 @@ public class BlueFarShootAuto extends OpMode {
 
     @Override
     public void loop() {
+        if (Parameters.allianceColor == Parameters.Color.BLUE) {
+            turret.limelight.pipelineSwitch(3);
+        } else {
+            turret.limelight.pipelineSwitch(4);
+        }
+
         shooter.update(false, false, true);
         autoShoot.update();     // ONLY once per loop
         hood.update();
@@ -324,7 +330,7 @@ public class BlueFarShootAuto extends OpMode {
         turret.autoMode();
         turret.mode = Turret.turretMode.AUTO;
 
-        if (mmmmmTIME.getElapsedTimeSeconds() > 0.75) {
+        if (mmmmmTIME.getElapsedTimeSeconds() > 1.5) {
 
             // check floor sensors and potentially trigger zone-shooting
             checkFloorSensorsForZoneAndMaybeStartShooting();
@@ -338,7 +344,8 @@ public class BlueFarShootAuto extends OpMode {
                         intake.setPower(1);
                         walleft.setPower(1);
                         wallright.setPower(1);
-                        spin.setManual(0.08);
+                        spin.goToSilo2();
+                        zone
                         turret.stop();
                     } else if (isInArray(WALL_ONLY_PATHS, pathIndex)) {
                         intake.setPower(0);
@@ -381,7 +388,12 @@ public class BlueFarShootAuto extends OpMode {
                     } else if ((opmodeTimer.getElapsedTimeSeconds() - zoneShootingStartTime) > ZONE_SHOOT_MAX_DURATION) {
                         // safety timeout - abort zone shooting
                         zoneShootingActive = false;
-                        autoShoot.stopForcedCycle();
+                        if (skipZoneShootingOnce){
+
+                            autoShoot.startCycle();
+                        }else {
+                            autoShoot.stopForcedCycle();
+                        }
                         stopZoneShootingCleanup();
                         // advance so we don't repeat same path
                         if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
@@ -526,7 +538,7 @@ public class BlueFarShootAuto extends OpMode {
                     patternMgr.addPattern(p.sequence);
                 }
 
-                autoShoot.startCycle();
+                autoShoot.startForcedCycle();
 
                 // If not zone-shooting, break follower to keep robot still while pattern-based shooting occurs
                 if (!zoneShootingActive) {
@@ -637,7 +649,7 @@ public class BlueFarShootAuto extends OpMode {
         if (frc > ZONE_BLUE_THRESHOLD) countAbove++;
 
         // immediate accept if two or more sensors are high (quick entry)
-        if (countAbove >= 2) {
+        if (countAbove >= 1) {
             startZoneShootingIfNeeded();
             return;
         }
@@ -664,8 +676,8 @@ public class BlueFarShootAuto extends OpMode {
 
     private void startZoneShootingIfNeeded() {
         if (zoneShootingActive) return;
+
         if (autoState != AutoState.FOLLOW_PATH) return;
-        if (autoShoot.isBusy()) return;
 
         // double-check skip flag: don't zone-shoot if we were asked to skip once.
         if (skipZoneShootingOnce && pathIndex == 0 && !followerStarted) return;

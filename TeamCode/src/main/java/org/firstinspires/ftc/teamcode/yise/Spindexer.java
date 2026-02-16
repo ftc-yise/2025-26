@@ -488,8 +488,8 @@ public class Spindexer {
         int b = s.blue();
 
         if (sensorIndex == 0) { // middle sensor
-            if (b > 250 && b > g) return BallColor.PURPLE;
-            else if (g > 150) return BallColor.GREEN;
+            if (b > 350 && b > g) return BallColor.PURPLE;
+            else if (g > 300) return BallColor.GREEN;
             return BallColor.NONE;
         } else if (sensorIndex == 1) { // backLeft
             if (b > 225  && b > g) return BallColor.PURPLE;

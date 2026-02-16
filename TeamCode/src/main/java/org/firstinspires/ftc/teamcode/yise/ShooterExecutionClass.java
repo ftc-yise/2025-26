@@ -28,6 +28,8 @@ public class ShooterExecutionClass {
     private final double LIFTER_MOVE_TIMEOUT = 1.2; // seconds
     public int shots = 0;
 
+    public boolean dpad = false;
+
     public int shotsFired = 0;
     private int totalShots = 0;        // dynamically computed at cycle start
     public int currentSiloIndex = -1; // currently active silo
@@ -174,10 +176,12 @@ public class ShooterExecutionClass {
             }
 
             case IDLE:
-                if (org.firstinspires.ftc.teamcode.yise.Parameters.autonomous == org.firstinspires.ftc.teamcode.yise.Parameters.AUTONOMOUS.YES) {
-                    shooter.update(false, false, true);
-                } else {
-                    shooter.update(false, false, false);
+                if (!dpad) {
+                    if (org.firstinspires.ftc.teamcode.yise.Parameters.autonomous == org.firstinspires.ftc.teamcode.yise.Parameters.AUTONOMOUS.YES) {
+                        shooter.update(false, false, true);
+                    } else {
+                        shooter.update(false, false, false);
+                    }
                 }
                 return;
 
