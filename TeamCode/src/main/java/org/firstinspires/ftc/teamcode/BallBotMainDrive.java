@@ -24,7 +24,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 @TeleOp(name = "BallBot", group = "Ball Bot")
 public class BallBotMainDrive extends LinearOpMode {
 
@@ -494,7 +496,12 @@ public class BallBotMainDrive extends LinearOpMode {
                     File dir = new File("/sdcard/FIRST");
                     if (!dir.exists()) dir.mkdirs();
 
-                    logFilePath = "/sdcard/FIRST/telemetry_" + System.currentTimeMillis() + ".csv";
+                    String timestamp = new SimpleDateFormat(
+                            "yyyyMMdd_HHmmss",
+                            Locale.US
+                    ).format(new Date());
+
+                    logFilePath = "/sdcard/FIRST/telemetry_" + timestamp + ".csv";
                     logWriter = new PrintWriter(new FileWriter(logFilePath));
 
                     logWriter.println(
@@ -681,7 +688,8 @@ public class BallBotMainDrive extends LinearOpMode {
                         spx.appliedPower,
                         spx.siloColors[0],
                         spx.siloColors[1],
-                        spx.siloColors[2]
+                        spx.siloColors[2],
+                        System.currentTimeMillis()
                 );
 
                 logWriter.flush();
