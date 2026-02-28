@@ -551,6 +551,7 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("spin up time", s.spinupTimeSec);
 
 // DRIVE
+            /*
             telemetry.addLine("=== FIELD DRIVE ===");
             telemetry.addData("Speed Mode", d.currentSpeed);
             telemetry.addData("Heading (deg)", "%.2f", d.headingDeg);
@@ -645,6 +646,8 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Blue", FLC.blue());
             telemetry.addData("Red", FLC.red());
             telemetry.addData("Green", FLC.green());
+
+             */
             telemetry.update();
 
             if (logWriter != null && logTimer.seconds() >= 0.1) {
@@ -684,6 +687,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 logWriter.flush();
                 logTimer.reset();
             }
+
 
 
         } // end while opModeIsActive
