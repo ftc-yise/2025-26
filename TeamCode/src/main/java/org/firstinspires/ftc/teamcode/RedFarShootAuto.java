@@ -270,17 +270,19 @@ public class RedFarShootAuto extends OpMode {
         shooter.update(false, false, true);
         opmodeTimer.resetTimer();
 
+        if (Parameters.allianceColor == Parameters.Color.BLUE) {
+            turret.limelight.pipelineSwitch(3);
+        } else {
+            turret.limelight.pipelineSwitch(4);
+        }
+
         if (pathIndex < 0) pathIndex = 0;
 
         followerStarted = false;
         lastFollowerBusy = true;
         autoState = AutoState.FOLLOW_PATH;
 
-        if (Parameters.allianceColor == Parameters.Color.BLUE) {
-            turret.limelight.pipelineSwitch(3);
-        } else {
-            turret.limelight.pipelineSwitch(4);
-        }
+
 
         if (fireAtStart) {
             turret.autoMode();
@@ -318,7 +320,7 @@ public class RedFarShootAuto extends OpMode {
         follower.update();
         turret.autoMode();
         turret.mode = Turret.turretMode.AUTO;
-        if (mmmmmTIME.getElapsedTimeSeconds() > 0.75) {
+        if (mmmmmTIME.getElapsedTimeSeconds() > 1) {
 
             // check floor sensors and potentially trigger zone-shooting
             checkFloorSensorsForZoneAndMaybeStartShooting();
