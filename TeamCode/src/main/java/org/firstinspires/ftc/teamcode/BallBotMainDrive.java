@@ -336,7 +336,6 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad1.right_trigger > 0.75 && !shooting) {
                 intake.setPower(1);
                 led1.setBlue();
-
                 walleft.setPower(1);
                 wallright.setPower(1);
                 spin.setManual(.2);
