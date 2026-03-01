@@ -345,7 +345,6 @@ public class BlueFarShootAuto extends OpMode {
                         walleft.setPower(1);
                         wallright.setPower(1);
                         spin.goToSilo2();
-                        zone
                         turret.stop();
                     } else if (isInArray(WALL_ONLY_PATHS, pathIndex)) {
                         intake.setPower(0);
