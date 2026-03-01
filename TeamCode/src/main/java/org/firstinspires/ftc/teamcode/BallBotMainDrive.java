@@ -24,7 +24,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 @TeleOp(name = "BallBot", group = "Ball Bot")
 public class BallBotMainDrive extends LinearOpMode {
 
@@ -65,6 +67,7 @@ public class BallBotMainDrive extends LinearOpMode {
     boolean a;
     boolean x;
     private final ElapsedTime runtime = new ElapsedTime();
+    private final ElapsedTime ledTimer = new ElapsedTime();
     private final ElapsedTime logTimer = new ElapsedTime();
     private PrintWriter logWriter = null;
     private String logFilePath = null;
@@ -322,7 +325,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 led1.setOff();
                 led2.setOff();
                 led3.setOff();
-                runtime.reset();
+                ledTimer.reset();
             } else if (shooting){
                 led1.setGreen();
                 led2.setGreen();
@@ -333,7 +336,6 @@ public class BallBotMainDrive extends LinearOpMode {
             if (gamepad1.right_trigger > 0.75 && !shooting) {
                 intake.setPower(1);
                 led1.setBlue();
-
                 walleft.setPower(1);
                 wallright.setPower(1);
                 spin.setManual(.2);
@@ -494,7 +496,12 @@ public class BallBotMainDrive extends LinearOpMode {
                     File dir = new File("/sdcard/FIRST");
                     if (!dir.exists()) dir.mkdirs();
 
-                    logFilePath = "/sdcard/FIRST/telemetry_" + System.currentTimeMillis() + ".csv";
+                    String timestamp = new SimpleDateFormat(
+                            "yyyyMMdd_HHmmss",
+                            Locale.US
+                    ).format(new Date());
+
+                    logFilePath = "/sdcard/FIRST/telemetry_" + timestamp + ".csv";
                     logWriter = new PrintWriter(new FileWriter(logFilePath));
 
                     logWriter.println(
@@ -504,7 +511,16 @@ public class BallBotMainDrive extends LinearOpMode {
                                     "lf,rf,lb,rb,total_power," +
                                     "pose_x,pose_y,pose_h," +
                                     "spx_mode,spx_currentAngle,spx_targetAngle,spx_error,spx_appliedPower," +
-                                    "silo1,silo2,silo3"
+                                    "silo1,silo2,silo3," +
+
+                                    // button states for safety/debug
+                                    "btn_a,btn_x,btn_g1_rt,btn_g1_lt,btn_g1_rb,btn_g2_y," +
+
+                                    // per-press times (seconds)
+                                    "press_shot1,press_shot2,press_shot3,press_avg," +
+
+                                    // global averages (seconds)
+                                    "avg_shot1,avg_shot2,avg_shot3,avg_overall"
                     );
 
                     logWriter.flush();
@@ -539,6 +555,7 @@ public class BallBotMainDrive extends LinearOpMode {
 
 // --- TELEMETRY ---
 // SHOOTER
+            /*
             shooter.updateTelemetry();
             ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
             telemetry.addLine("=== SHOOTER ===");
@@ -551,6 +568,29 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("spin up time", s.spinupTimeSec);
 
 // DRIVE
+            // --- SHOOTER TIMING TELEMETRY ---
+            double[] lastShotsTelemetry = autoShoot.getLastCompletedPressShotTimes();
+            telemetry.addLine("=== SHOOT TIMING ===");
+            telemetry.addData("Press Shot1", "%.3f", lastShotsTelemetry[0]);
+            telemetry.addData("Press Shot2", "%.3f", lastShotsTelemetry[1]);
+            telemetry.addData("Press Shot3", "%.3f", lastShotsTelemetry[2]);
+            telemetry.addData("Press Avg", "%.3f", autoShoot.getLastCompletedPressAverage());
+
+            telemetry.addLine("--- GLOBAL AVERAGES ---");
+            telemetry.addData("Avg Shot1", "%.3f", autoShoot.getGlobalAverageShot1());
+            telemetry.addData("Avg Shot2", "%.3f", autoShoot.getGlobalAverageShot2());
+            telemetry.addData("Avg Shot3", "%.3f", autoShoot.getGlobalAverageShot3());
+            telemetry.addData("Avg Overall", "%.3f", autoShoot.getGlobalOverallAverage());
+
+            // optional: show which buttons are pressed (safety)
+            telemetry.addLine("--- BUTTONS ---");
+            telemetry.addData("A", "%b", a);
+            telemetry.addData("X", "%b", x);
+            telemetry.addData("G1 RT>", "%b", gamepad1.right_trigger > 0.75);
+            telemetry.addData("G1 LT>", "%b", gamepad1.left_trigger > 0.75);
+            telemetry.addData("G1 RB", "%b", gamepad1.right_bumper);
+            telemetry.addData("G2 Y", "%b", gamepad2.y);
+
             telemetry.addLine("=== FIELD DRIVE ===");
             telemetry.addData("Speed Mode", d.currentSpeed);
             telemetry.addData("Heading (deg)", "%.2f", d.headingDeg);
@@ -645,9 +685,11 @@ public class BallBotMainDrive extends LinearOpMode {
             telemetry.addData("Blue", FLC.blue());
             telemetry.addData("Red", FLC.red());
             telemetry.addData("Green", FLC.green());
-            telemetry.update();
 
-            if (logWriter != null && logTimer.seconds() >= 0.1) {
+           telemetry.update();
+           */
+
+            if (logWriter != null && logTimer.seconds() > 0.1) {
 
                 double now = runtime.seconds();
 
@@ -657,15 +699,34 @@ public class BallBotMainDrive extends LinearOpMode {
                         Math.abs(d.lf) + Math.abs(d.rf) +
                                 Math.abs(d.lb) + Math.abs(d.rb);
 
-                logWriter.printf(
-                        "%.3f," +
-                                "%.4f,%.4f,%.4f," +
-                                "%.4f,%.4f,%.4f," +
-                                "%.4f,%.4f,%.4f,%.4f,%.4f," +
-                                "%.4f,%.4f,%.4f," +
-                                "%s,%.2f,%.2f,%.2f,%.3f," +
-                                "%s,%s,%s%n",
+                // --- gather shooter timing & averages (single synchronized calls to getters) ---
+                double[] lastShots = autoShoot.getLastCompletedPressShotTimes(); // may contain NaN
+                double lastPressAvg = autoShoot.getLastCompletedPressAverage();
+                double globalAvg1 = autoShoot.getGlobalAverageShot1();
+                double globalAvg2 = autoShoot.getGlobalAverageShot2();
+                double globalAvg3 = autoShoot.getGlobalAverageShot3();
+                double globalOverall = autoShoot.getGlobalOverallAverage();
 
+                // button/safety flags
+                boolean btnA = a; // edge state you already track
+                boolean btnX = x;
+                boolean g1Rt = gamepad1.right_trigger > 0.75;
+                boolean g1Lt = gamepad1.left_trigger > 0.75;
+                boolean g1Rb = gamepad1.right_bumper;
+                boolean g2Y  = gamepad2.y;
+
+                logWriter.printf(
+                        "%.3f," +                                    // now
+                                "%.4f,%.4f,%.4f," +                          // raw inputs
+                                "%.4f,%.4f,%.4f," +                          // transformed inputs
+                                "%.4f,%.4f,%.4f,%.4f,%.4f," +                // motor powers + total
+                                "%.4f,%.4f,%.4f," +                          // pose x,y,h
+                                "%s,%.2f,%.2f,%.2f,%.3f," +                 // spindexer (mode,current,target,error,power)
+                                "%s,%s,%s," +                                // silo colors
+                                "%b,%b,%b,%b,%b,%b," +                       // button states
+                                "%.4f,%.4f,%.4f,%.4f," +                     // press shot1,shot2,shot3,press_avg
+                                "%.4f,%.4f,%.4f,%.4f%n",                    // global avg1,avg2,avg3,overall
+                        // values:
                         now,
                         d.rawX, d.rawY, d.rawTurn,
                         d.tx_field, d.ty_field, d.rotationCmd,
@@ -678,12 +739,30 @@ public class BallBotMainDrive extends LinearOpMode {
                         spx.appliedPower,
                         spx.siloColors[0],
                         spx.siloColors[1],
-                        spx.siloColors[2]
+                        spx.siloColors[2],
+                        // button flags
+                        btnA,
+                        btnX,
+                        g1Rt,
+                        g1Lt,
+                        g1Rb,
+                        g2Y,
+                        // per-press shot times (safe index checks)
+                        (lastShots.length > 0 ? lastShots[0] : Double.NaN),
+                        (lastShots.length > 1 ? lastShots[1] : Double.NaN),
+                        (lastShots.length > 2 ? lastShots[2] : Double.NaN),
+                        lastPressAvg,
+                        // globals
+                        globalAvg1,
+                        globalAvg2,
+                        globalAvg3,
+                        globalOverall
                 );
 
                 logWriter.flush();
                 logTimer.reset();
             }
+
 
 
         } // end while opModeIsActive

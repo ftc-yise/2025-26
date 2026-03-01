@@ -84,7 +84,7 @@ public class ShooterClass {
     private boolean readySniper = false;
 
     // Spin-up profiling
-    private final ElapsedTime spinupTimer = new ElapsedTime();
+    public ElapsedTime spinupTimer = new ElapsedTime();
     private double spinupTimeSec = 0.0;
     private boolean spinningUp = false;
 
@@ -121,6 +121,8 @@ public class ShooterClass {
         public double batteryVoltage;
 
         public double pose;
+
+
     }
 
     private final ShooterTelemetry t = new ShooterTelemetry();
@@ -160,15 +162,15 @@ public class ShooterClass {
                 break;
 
             case IDLE:
-                targetRPM = 3250;
+                targetRPM = 3650;
                 break;
 
             case LOW:
-                targetRPM = 3250;
+                targetRPM = 3000;
                 break;
 
             case FULL:
-                targetRPM = 3750;
+                targetRPM = 3650;
                 break;
         }
 
@@ -196,11 +198,11 @@ public class ShooterClass {
         // Spin-up profiling
         if (targetRPM > 0 && !spinningUp) {
             spinningUp = true;
-            spinupTimer.reset();
         }
 
         if (spinningUp && Math.abs(rpmError) < READY_NORMAL) {
             spinupTimeSec = spinupTimer.seconds();
+            spinupTimer.reset();
             spinningUp = false;
         }
 
