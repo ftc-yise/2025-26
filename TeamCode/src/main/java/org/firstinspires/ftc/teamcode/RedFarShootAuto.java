@@ -9,14 +9,10 @@ import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
-import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.yise.DriveClass;
 import org.firstinspires.ftc.teamcode.yise.Hood;
-import org.firstinspires.ftc.teamcode.yise.Ledclass;
 import org.firstinspires.ftc.teamcode.yise.Parameters;
 import org.firstinspires.ftc.teamcode.yise.ShooterClass;
 import org.firstinspires.ftc.teamcode.yise.ShooterExecutionClass;
@@ -25,20 +21,165 @@ import org.firstinspires.ftc.teamcode.yise.Spindexer;
 import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
+/**
+ * RedFarShootAuto
+ *
+ * This version is intentionally structured as a very explicit recipe.
+ *
+ * High-level idea:
+ *   - Pedro owns driving.
+ *   - ShooterExecutionClass owns the actual shooting cycle.
+ *   - This OpMode only decides WHICH step comes next.
+ *
+ * The biggest difference from the older version is that there is no hidden
+ * “if zone sensor says X, then maybe shoot, maybe skip, maybe re-run a path” logic.
+ *
+ * Instead, the autonomous routine is written as a sequence:
+ *
+ *   SHOOT -> PATH 0 -> SHOOT -> PATH 1 -> SHOOT -> PATH 2
+ *
+ * If you want the shorter version:
+ *
+ *   SHOOT -> PATH 0 -> SHOOT -> PATH 1 -> SHOOT
+ *
+ * remove the final PATH 2 step from ROUTINE below.
+ *
+ * This is the version I recommend for learning and for future edits,
+ * because every action is visible in one list at the top of the class.
+ */
 @Autonomous(name = "[RED] Far Shoot Auto", group = "Auto")
 public class RedFarShootAuto extends OpMode {
 
-    // --- Paths & pathing ---
+    // ---------------------------------------------------------
+    // TUNING CONSTANTS
+    // ---------------------------------------------------------
+    // How long we wait after a path ends before starting a shoot step.
+    // This gives the robot time to settle so the shooter is less likely to
+    // fire while the chassis is still oscillating.
+    private static final double PATH_SETTLE_SECONDS = 0.25;
+
+    // Safety timeout for the shoot sequence.
+    // If something goes wrong in the shooter cycle, we do not want to get stuck forever.
+    private static final double SHOOT_TIMEOUT_SECONDS = 12.0;
+
+    // Intake / wall wheel constants.
+    private static final double WALL_WHEEL_POWER = 0.51;
+    private static final double INTAKE_POWER = 1.0;
+
+    // These are the paths where we want the intake/wall wheels active while moving.
+    // In your current routine, path 0 and path 1 are intake travel paths.
+    private static final int[] INTAKE_PATHS = {0, 1};
+
+    // If you want a path where only the wall wheels run and intake stays off,
+    // put that path index in this list.
+    private static final int[] WALL_ONLY_PATHS = {2};
+
+    // ---------------------------------------------------------
+    // ROUTINE DEFINITION
+    // ---------------------------------------------------------
+    /**
+     * This array is the entire autonomous plan.
+     *
+     * Read it top to bottom.
+     *
+     * Default order here:
+     *   1. Shoot before moving.
+     *   2. Run path 0.
+     *   3. Shoot again.
+     *   4. Run path 1.
+     *   5. Shoot again.
+     *   6. Run path 2 (optional parking / final move).
+     *
+     * If you want EXACTLY:
+     *   shoot -> path -> shoot -> path -> shoot
+     * then delete the last line:
+     *   new Step(StepType.PATH, 2)
+     */
+    private static final class Step {
+        final StepType type;
+        final int pathIndex;
+
+        Step(StepType type, int pathIndex) {
+            this.type = type;
+            this.pathIndex = pathIndex;
+        }
+    }
+
+    private enum StepType {
+        SHOOT,
+        PATH
+    }
+
+    private static final Step[] ROUTINE = new Step[] {
+            new Step(StepType.SHOOT, -1),
+            new Step(StepType.PATH, 0),
+            new Step(StepType.SHOOT, -1),
+            new Step(StepType.PATH, 1),
+            new Step(StepType.SHOOT, -1),
+            new Step(StepType.PATH, 2)
+    };
+
+    // ---------------------------------------------------------
+    // STATE MACHINE
+    // ---------------------------------------------------------
+    /**
+     * START_STEP:
+     *   Begin the next step in ROUTINE.
+     *
+     * WAIT_SHOOT:
+     *   Let ShooterExecutionClass run until it finishes.
+     *
+     * WAIT_PATH:
+     *   Let Pedro finish the path, then wait a short settle time.
+     *
+     * DONE:
+     *   Clean shutdown.
+     */
+    private enum AutoState {
+        START_STEP,
+        WAIT_SHOOT,
+        WAIT_PATH,
+        DONE
+    }
+
+    private AutoState autoState = AutoState.START_STEP;
+
+    // Index of the next step to start.
+    // Example: 0 means ROUTINE[0] is next.
+    private int sequenceIndex = 0;
+
+    // Track which step is currently active, so the loop knows what it is waiting on.
+    private Step activeStep = null;
+
+    // For path steps, this stores which path is currently running.
+    // For shoot steps, this will be -1.
+    private int activePathIndex = -1;
+
+    // ---------------------------------------------------------
+    // PATHS
+    // ---------------------------------------------------------
+    /**
+     * All Pedro paths are defined here in one place.
+     *
+     * This is the part to edit when you want to change the robot’s driving shape.
+     *
+     * Important idea:
+     *   - The sequence/order of the autonomous is controlled by ROUTINE.
+     *   - The shape of each drive leg is controlled here.
+     */
     public static class Paths {
-        public PathChain[] paths;
-        int X_SHIFT = 4;
+        public final PathChain[] paths;
+        private static final int X_SHIFT = 4;
 
         public Paths(Follower follower) {
             paths = new PathChain[3];
 
+            // Path 0
+            // This is your first drive leg.
+            // If the points feel too aggressive, simplify the curve before tuning anything else.
             paths[0] = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                            new Pose(82.019 , 8.449),
+                            new Pose(82.019, 8.449),
                             new Pose(89.957 - X_SHIFT, 67.040),
                             new Pose(139.506 - X_SHIFT, 10.629),
                             new Pose(143.725 - X_SHIFT, 61.415),
@@ -50,9 +191,11 @@ public class RedFarShootAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
+            // Path 1
+            // This is your second drive leg.
             paths[1] = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                            new Pose(90.000  - X_SHIFT, 8.449),
+                            new Pose(90.000 - X_SHIFT, 8.449),
                             new Pose(74.175 - X_SHIFT, 83.789),
                             new Pose(73.819 - X_SHIFT, 77.214),
                             new Pose(135.934 - X_SHIFT, 29.180),
@@ -64,178 +207,253 @@ public class RedFarShootAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
+            // Path 2
+            // This is your final drive leg / parking move.
+            // If you want the simpler five-step routine,
+            // remove this path from ROUTINE, or leave it here as a parking move.
             paths[2] = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(82.142, 91.552), new Pose(108, 70)))
+                    .addPath(new BezierLine(
+                            new Pose(82.142, 91.552),
+                            new Pose(108, 70)))
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
         }
     }
 
-    // --- Enums: Auto state machine ---
-    private enum AutoState {
-        FOLLOW_PATH,
-        REQUEST_SHOT,
-        WAIT_FOR_SHOT,
-        DONE
-    }
-
-    private AutoState autoState = AutoState.FOLLOW_PATH;
-
-    // --- Configuration ---
-    private double lastZoneTriggerStart = 0.0;
-    private final double SENSOR_HOLD_SECONDS = 0.18; // 180 ms
-
-    private final int[] SHOOT_PATHS = {0, 1};      // firing-trigger paths
-    private final int[] INTAKE_PATHS = {0, 1};
-    private final int[] WALL_ONLY_PATHS = {2};
-    private final boolean fireAtStart = true;
-    private boolean startFinished = false;
-    private final double PATH_SETTLE_SECONDS = 1; // short settle after path arrival
-    private final double SHOOT_TIMEOUT_SECONDS = 15;
-    private final int ZONE_BLUE_THRESHOLD = 1000;
-
-    // --- Subsystems & hardware ---
+    // ---------------------------------------------------------
+    // HARDWARE / SUBSYSTEMS
+    // ---------------------------------------------------------
     private Follower follower;
     private Paths paths;
-    private boolean followerStarted = false;
-    private boolean lastFollowerBusy = true;
-    private Timer pathTimer, opmodeTimer, mmmmmTIME;
-    private DriveClass drive;
+
     private ShooterClass shooter;
     private Spindexer spin;
-    private lifter lifter;
+    private lifter lift;
     private Hood hood;
     private ShooterExecutionClass autoShoot;
     private ShotPatternManager patternMgr;
     private Turret turret;
-    private Ledclass led1;
-    private Parameters parem = new Parameters();
 
-    private DcMotor intake = null;
-    private CRServo walleft = null;
-    private CRServo wallright = null;
+    private DcMotor intake;
+    private CRServo walleft;
+    private CRServo wallright;
 
-    // floor-facing color sensors at corners
-    private ColorSensor BackRightCorner = null; // "BRC"
-    private ColorSensor BackLeftCorner = null;  // "BLC"
-    private ColorSensor FrontLeftCorner = null; // "FLC"
-    private ColorSensor FrontRightCorner = null;// "FRC"
+    // ---------------------------------------------------------
+    // TIMERS
+    // ---------------------------------------------------------
+    private final Timer pathTimer = new Timer();
+    private final Timer shootTimer = new Timer();
+    private final Timer opmodeTimer = new Timer();
 
-    // Local timers
-    private ElapsedTime shotRequestTimer = new ElapsedTime(); // used for shot timeout / timing
-    private ElapsedTime waitTimer = new ElapsedTime(); // general purpose
-
-    // path index
-    private int pathIndex = 0;
-    private boolean[] shotDoneForPath;
-    private boolean startShotTriggered = false;
-
-    // Zone-shooting flags & latches (one per sensor)
-    private boolean blcLatched = false;
-    private boolean brcLatched = false;
-    private boolean flcLatched = false;
-    private boolean frcLatched = false;
-
-    private boolean zoneShootingActive = false;
-    private double zoneShootingStartTime = 0.0;
-    private final double ZONE_SHOOT_MAX_DURATION = 8; // seconds safety for zone shooting
-
-    // --- NEW FIX FIELDS ---
-    // When true we will prevent zone-shoot from firing immediately after a pre-start shot.
-    // This gets set when we perform a pre-start shot and is cleared when we actually start following the first path.
-    private boolean skipZoneShootingOnce = false;
-
-    // helper
-    private boolean isInArray(int[] arr, int v) {
+    // ---------------------------------------------------------
+    // UTILITY HELPERS
+    // ---------------------------------------------------------
+    private static boolean isInArray(int[] arr, int v) {
         if (arr == null) return false;
         for (int x : arr) if (x == v) return true;
         return false;
     }
 
+    /**
+     * Maps AprilTag IDs to your shot pattern manager.
+     *
+     * This lets the robot choose the order of colors inside ShooterExecutionClass.
+     * The drive order is controlled separately by ROUTINE.
+     */
     private ShotPatternManager.ShotPattern patternFromTag(int tagId) {
         switch (tagId) {
-            case 21: return ShotPatternManager.ShotPattern.GPP;
-            case 22: return ShotPatternManager.ShotPattern.PGP;
-            case 23: return ShotPatternManager.ShotPattern.PPG;
-            default: return null;
+            case 21:
+                return ShotPatternManager.ShotPattern.GPP;
+            case 22:
+                return ShotPatternManager.ShotPattern.PGP;
+            case 23:
+                return ShotPatternManager.ShotPattern.PPG;
+            default:
+                return null;
         }
     }
 
-    // Triangles for shooting zones
-    private boolean pointInTriangle(double px, double py, double ax, double ay, double bx, double by, double cx, double cy) {
-        double v0x = cx - ax;
-        double v0y = cy - ay;
-        double v1x = bx - ax;
-        double v1y = by - ay;
-        double v2x = px - ax;
-        double v2y = py - ay;
-
-        double dot00 = v0x * v0x + v0y * v0y;
-        double dot01 = v0x * v1x + v0y * v1y;
-        double dot02 = v0x * v2x + v0y * v2y;
-        double dot11 = v1x * v1x + v1y * v1y;
-        double dot12 = v1x * v2x + v1y * v2y;
-
-        double denom = (dot00 * dot11 - dot01 * dot01);
-        if (Math.abs(denom) < 1e-9) return false;
-
-        double invDenom = 1.0 / denom;
-        double u = (dot11 * dot02 - dot01 * dot12) * invDenom;
-        double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
-        return (u >= 0) && (v >= 0) && (u + v < 1);
+    /**
+     * Turns everything related to collection / feeding off.
+     *
+     * This is a good “safe default” any time you are not intentionally intaking.
+     */
+    private void setDriveFeedersOff() {
+        intake.setPower(0);
+        walleft.setPower(0);
+        wallright.setPower(0);
     }
 
-    private boolean insideShootingZone(double x, double y) {
-        if (pointInTriangle(x, y, 96+8, 0, 72+8, 24-8, 48-8, 0)) return true;
-        if (pointInTriangle(x, y, 0, 144, 72+8, 72+8, 144, 144)) return true;
-        return false;
+    /**
+     * Runs intake + wall wheels together.
+     *
+     * Use this while driving through paths where you are collecting balls.
+     */
+    private void setIntakeAndWallsOn() {
+        intake.setPower(INTAKE_POWER);
+        walleft.setPower(WALL_WHEEL_POWER);
+        wallright.setPower(WALL_WHEEL_POWER);
     }
 
-    // ----------------- Lifecycle -----------------
+    /**
+     * Runs wall wheels but leaves intake off.
+     *
+     * This is useful if you want the feeder walls to keep moving balls,
+     * but you do not want the intake spinning.
+     */
+    private void setWallsOnIntakeOff() {
+        intake.setPower(0);
+        walleft.setPower(WALL_WHEEL_POWER);
+        wallright.setPower(WALL_WHEEL_POWER);
+    }
+
+    // ---------------------------------------------------------
+    // STEP CONTROL
+    // ---------------------------------------------------------
+    /**
+     * Starts the next step in ROUTINE.
+     *
+     * This is the heart of the autonomous.
+     * Every time a step finishes, this method moves to the next one.
+     *
+     * There are only two kinds of steps:
+     *   - SHOOT
+     *   - PATH
+     *
+     * That makes the code easy to reason about and easy to edit later.
+     */
+    private void startNextStep() {
+        if (sequenceIndex >= ROUTINE.length) {
+            activeStep = null;
+            autoState = AutoState.DONE;
+            return;
+        }
+
+        activeStep = ROUTINE[sequenceIndex++];
+
+        if (activeStep.type == StepType.SHOOT) {
+            startShootStep();
+        } else {
+            startPathStep(activeStep.pathIndex);
+        }
+    }
+
+    /**
+     * Starts a shooting step.
+     *
+     * This does NOT drive the robot.
+     * It only starts the shooter state machine and then waits for it to finish.
+     */
+    private void startShootStep() {
+        // Set the hood target before the shooter cycle begins.
+        // This keeps the shot step self-contained and easy to understand.
+        hood.setTarget(75);
+
+        // Make sure feeders are in a known state at the start of every shot.
+        setWallsOnIntakeOff();
+
+        // Reset the timeout timer for this shot step.
+        shootTimer.resetTimer();
+
+        // Start the shooter cycle.
+        // ShooterExecutionClass owns the actual shot sequence.
+        autoShoot.startCycle();
+
+        // While the shooter is doing its work, this OpMode sits in WAIT_SHOOT.
+        autoState = AutoState.WAIT_SHOOT;
+    }
+
+    /**
+     * Starts a drive step.
+     *
+     * The path index is taken from the ROUTINE entry.
+     * Pedro is then responsible for following that path.
+     */
+    private void startPathStep(int pathIdx) {
+        activePathIndex = pathIdx;
+
+        if (pathIdx < 0 || pathIdx >= paths.paths.length) {
+            autoState = AutoState.DONE;
+            activeStep = null;
+            return;
+        }
+
+        // Start the path once.
+        follower.followPath(paths.paths[pathIdx], 1, true);
+
+        // Start the settle timer now, because this is when the path began.
+        pathTimer.resetTimer();
+
+        // While the path runs, we remain in WAIT_PATH.
+        autoState = AutoState.WAIT_PATH;
+    }
+
+    /**
+     * Ends whatever step is currently active and moves on to the next one.
+     */
+    private void completeActiveStep() {
+        lift.setDown();
+        setDriveFeedersOff();
+        activePathIndex = -1;
+        activeStep = null;
+        autoState = AutoState.START_STEP;
+    }
+
+    /**
+     * Safety fallback if the shooter gets stuck.
+     */
+    private void abortShootStep() {
+        autoShoot.stopForcedCycle();
+        lift.setDown();
+        setDriveFeedersOff();
+        activePathIndex = -1;
+        activeStep = null;
+        autoState = AutoState.START_STEP;
+    }
+
+    // ---------------------------------------------------------
+    // LIFECYCLE
+    // ---------------------------------------------------------
     @Override
     public void init() {
         Parameters.autonomous = Parameters.AUTONOMOUS.YES;
-        pathTimer = new Timer();
-        opmodeTimer = new Timer();
-        mmmmmTIME = new Timer();
-        mmmmmTIME.resetTimer();
+
         opmodeTimer.resetTimer();
 
+        // Create the Pedro follower.
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(82.019, 8.449, Math.toRadians(0)));
+
+        // Build the path list once at init.
         paths = new Paths(follower);
 
+        // Hardware bindings.
         intake = hardwareMap.get(DcMotor.class, "intake");
         walleft = hardwareMap.get(CRServo.class, "WallWheelLeft");
         wallright = hardwareMap.get(CRServo.class, "WallWheelRight");
-        led1 = new Ledclass(hardwareMap, "led1");
         wallright.setDirection(CRServo.Direction.REVERSE);
 
-        BackLeftCorner = hardwareMap.get(ColorSensor.class, "BLC");
-        BackRightCorner = hardwareMap.get(ColorSensor.class, "BRC");
-        FrontLeftCorner = hardwareMap.get(ColorSensor.class, "FLC");
-        FrontRightCorner = hardwareMap.get(ColorSensor.class, "FRC");
-
-        drive = new DriveClass(hardwareMap);
+        // Subsystems.
         shooter = new ShooterClass(hardwareMap);
         spin = new Spindexer(hardwareMap);
-        lifter = new lifter(hardwareMap);
+        lift = new lifter(hardwareMap);
         hood = new Hood(hardwareMap);
         turret = new Turret(hardwareMap, Turret.turretAlliance.RED, telemetry);
-        parem.autonomous = Parameters.AUTONOMOUS.YES;
 
-        autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lifter);
+        autoShoot = new ShooterExecutionClass(spin, shooter, hardwareMap, lift);
         patternMgr = new ShotPatternManager();
         autoShoot.setPatternManager(patternMgr);
 
-        shotDoneForPath = new boolean[paths.paths.length];
-        for (int i = 0; i < shotDoneForPath.length; i++) shotDoneForPath[i] = false;
-
+        // If the shooter is not actively driving a shot, keep the feeder motors off.
+        setDriveFeedersOff();
     }
 
     @Override
     public void init_loop() {
+        // This runs before the match starts.
+        // It is a good place for sensor observation and setup.
         turret.limelight.pipelineSwitch(2);
+
         int tagId = turret.getID();
         ShotPatternManager.ShotPattern p = patternFromTag(tagId);
         if (p != null) {
@@ -243,435 +461,190 @@ public class RedFarShootAuto extends OpMode {
             patternMgr.addPattern(p.sequence);
         }
 
+        // Keep these subsystem updates alive in init loop so telemetry is stable.
         hood.update();
-        Hood.TelemetryPacket H = hood.getTelemetry();
-        lifter.TelemetryPacket l = lifter.getTelemetry();
+        lift.update();
+        spin.update();
+        spin.sampleSensorsNow();
 
-        telemetry.addData("pre_pathIndex", pathIndex);
-        telemetry.addData("pre_pathState", autoState);
+        telemetry.addData("sequenceIndex", sequenceIndex);
+        telemetry.addData("autoState", autoState);
+        telemetry.addData("followerBusy", follower.isBusy());
         telemetry.addData("x", follower.getPose().getX());
         telemetry.addData("y", follower.getPose().getY());
         telemetry.addData("heading", follower.getPose().getHeading());
+        telemetry.addData("tagId", tagId);
 
-        spin.update();
-        spin.sampleSensorsNow();
-        Spindexer.TelemetryPacket spina = spin.getTelemetry();
+        Spindexer.TelemetryPacket sp = spin.getTelemetry();
         telemetry.addLine("=== SILOS ===");
-        Spindexer.BallColor[] silos = spina.siloColors;
-        for (int i = 0; i < silos.length; i++) {
-            String label = "Silo " + (i+1);
-            telemetry.addData(label, silos[i]);
+        for (int i = 0; i < sp.siloColors.length; i++) {
+            telemetry.addData("Silo " + (i + 1), sp.siloColors[i]);
         }
+
         telemetry.update();
     }
 
     @Override
     public void start() {
+        // Start shooter in your normal ready state.
         shooter.update(false, false, true);
         opmodeTimer.resetTimer();
 
+        // Set the Limelight pipeline for the correct alliance.
         if (Parameters.allianceColor == Parameters.Color.BLUE) {
             turret.limelight.pipelineSwitch(3);
         } else {
             turret.limelight.pipelineSwitch(4);
         }
 
-        if (pathIndex < 0) pathIndex = 0;
+        // Reset the routine.
+        sequenceIndex = 0;
+        activeStep = null;
+        activePathIndex = -1;
+        autoState = AutoState.START_STEP;
 
-        followerStarted = false;
-        lastFollowerBusy = true;
-        autoState = AutoState.FOLLOW_PATH;
+        // Make sure shooter state is clean.
+        autoShoot.stopForcedCycle();
+        lift.setDown();
+        setDriveFeedersOff();
 
-
-
-        if (fireAtStart) {
-            turret.autoMode();
-            turret.mode = Turret.turretMode.AUTO;
-            patternMgr.clear();
-            ShotPatternManager.ShotPattern startPattern = patternFromTag(turret.getID());
-            if (startPattern != null) patternMgr.addPattern(startPattern.sequence);
-            autoState = AutoState.REQUEST_SHOT;
-
-            // mark that this request was from the pre-start
-            startShotTriggered = true;
-
-            // IMPORTANT: set the skip flag so we don't zone-shoot before the first path begins
-            skipZoneShootingOnce = true;
-        }
-        else {
-            if (pathIndex < paths.paths.length) {
-                follower.followPath(paths.paths[pathIndex]);
-                followerStarted = true;
-            }
-        }
-
-        shotRequestTimer.reset();
-        waitTimer.reset();
+        // Kick off the first step.
+        // Because ROUTINE starts with SHOOT, the robot shoots before driving.
+        startNextStep();
     }
 
     @Override
     public void loop() {
+        // -----------------------------------------------------
+        // SYSTEMS THAT SHOULD ALWAYS BE ALIVE
+        // -----------------------------------------------------
+        // These run every loop, regardless of which step is active.
         shooter.update(false, false, true);
-        autoShoot.update();     // ONLY once per loop
+        shooter.updateTelemetry();
         hood.update();
+        lift.update();
         spin.sampleSensorsNow();
         spin.update();
-        shooter.updateTelemetry();
-        follower.update();
+
+        // If the turret is supposed to track automatically, keep it in AUTO.
         turret.autoMode();
         turret.mode = Turret.turretMode.AUTO;
-        if (mmmmmTIME.getElapsedTimeSeconds() > 1) {
 
-            // check floor sensors and potentially trigger zone-shooting
-            checkFloorSensorsForZoneAndMaybeStartShooting();
+        // The shooter sequence must be updated continuously while it is active.
+        autoShoot.update();
 
-            // run single owner auto state machine
-            autoStateUpdate();
+        // The Pedro follower must also be updated continuously while a path is active.
+        follower.update();
 
-            if (startFinished) {
-                if (autoState == AutoState.FOLLOW_PATH) {
-                    if (isInArray(INTAKE_PATHS, pathIndex)) {
-                        intake.setPower(1);
-                        walleft.setPower(1);
-                        wallright.setPower(1);
-                        spin.setManual(0.08);
-                        turret.stop();
-                    } else if (isInArray(WALL_ONLY_PATHS, pathIndex)) {
-                        intake.setPower(0);
-                        walleft.setPower(0.51);
-                        wallright.setPower(0.51);
-                    } else {
-                        intake.setPower(0);
-                        walleft.setPower(0);
-                        wallright.setPower(0);
+        if (autoState == AutoState.DONE) {
+            follower.breakFollowing();
+            setDriveFeedersOff();
+            lift.setDown();
+        } else {
+            switch (autoState) {
+                case START_STEP:
+                    // Start the next item in ROUTINE.
+                    // This either becomes a shoot step or a path step.
+                    startNextStep();
+                    break;
+
+                case WAIT_SHOOT:
+                    // Keep the feeders moving while the shooter sequence is running.
+                    // This keeps the shot flow consistent.
+                    setWallsOnIntakeOff();
+
+                    // Once the shooter is done, move to the next step.
+                    if (!autoShoot.isBusy()) {
+                        completeActiveStep();
                     }
-                }
 
-                if (zoneShootingActive) {
-                    hood.update();
-                    autoShoot.update(); // ensure firing continues
-                    spin.update();
-                    walleft.setPower(0.51);
-                    wallright.setPower(0.51);
-
-                    // If we've fired all 3 balls, stop zone-shooting and allow path advancement
-                    if (autoShoot.shotsFired >= 3) {
-                        // End zone shooting, cleanup
-                        zoneShootingActive = false;
-                        stopZoneShootingCleanup();
-
-                        // mark the path as shot so FSM won't request it again
-                        if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
-                            shotDoneForPath[pathIndex] = true;
-                        }
-
-                        // *** NEW: Advance to the next path immediately so it is not re-run ***
-                        pathIndex++;
-                        followerStarted = false;
-                        startFinished = true;
-
-                        // prevent overflow
-                        if (pathIndex >= paths.paths.length) {
-                            autoState = AutoState.DONE;
-                        }
-                    } else if ((opmodeTimer.getElapsedTimeSeconds() - zoneShootingStartTime) > ZONE_SHOOT_MAX_DURATION) {
-                        // safety timeout - abort zone shooting
-                        zoneShootingActive = false;
-                        autoShoot.stopForcedCycle();
-                        stopZoneShootingCleanup();
-                        // advance so we don't repeat same path
-                        if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
-                            shotDoneForPath[pathIndex] = true;
-                        }
-                        pathIndex++;
-                        followerStarted = false;
-                        if (pathIndex >= paths.paths.length) autoState = AutoState.DONE;
+                    // Safety timeout.
+                    if (shootTimer.getElapsedTimeSeconds() > SHOOT_TIMEOUT_SECONDS) {
+                        abortShootStep();
                     }
-                }
+                    break;
+
+                case WAIT_PATH:
+                    // While the robot is still following a path, we can run intake logic.
+                    // This is the part that makes the robot look alive while it drives.
+                    if (follower.isBusy()) {
+                        if (isInArray(INTAKE_PATHS, activePathIndex)) {
+                            setIntakeAndWallsOn();
+                        } else if (isInArray(WALL_ONLY_PATHS, activePathIndex)) {
+                            intake.setPower(0);
+                            walleft.setPower(WALL_WHEEL_POWER);
+                            wallright.setPower(WALL_WHEEL_POWER);
+                        } else {
+                            setDriveFeedersOff();
+                        }
+                        break;
+                    }
+
+                    // If the path is finished, wait a tiny bit so the robot can settle.
+                    if (pathTimer.getElapsedTimeSeconds() < PATH_SETTLE_SECONDS) {
+                        break;
+                    }
+
+                    // Path is done and settled, so move to the next routine step.
+                    completeActiveStep();
+                    break;
+
+                case DONE:
+                    // Already handled above.
+                    break;
             }
-
-            // telemetry (condensed)
-            Hood.TelemetryPacket H = hood.getTelemetry();
-            lifter.TelemetryPacket l = lifter.getTelemetry();
-
-            telemetry.addData("AutoState", autoState);
-            telemetry.addData("pathIndex", pathIndex);
-            telemetry.addData("followerBusy", follower.isBusy());
-            telemetry.addData("zoneShooting", zoneShootingActive);
-            telemetry.addData("skipZoneOnce", skipZoneShootingOnce);
-            telemetry.addData("shotsFired", autoShoot.shotsFired);
-            telemetry.addData("x", follower.getPose().getX());
-            telemetry.addData("y", follower.getPose().getY());
-            telemetry.addData("heading", follower.getPose().getHeading());
-            telemetry.addLine();
-
-            ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
-            telemetry.addLine("=== SHOOTER ===");
-            telemetry.addData("Mode", s.mode);
-            telemetry.addData("Target RPM", "%.2f", s.targetRPM);
-            telemetry.addData("Current RPM", "%.1f", s.currentRPM);
-            telemetry.addData("Error RPM", "%.1f", s.errorRPM);
-            telemetry.addData("volt", s.motorPower);
-
-            telemetry.addLine("=== SPINDEXER ===");
-            Spindexer.TelemetryPacket spina = spin.getTelemetry();
-            telemetry.addData("Mode", spina.mode);
-            telemetry.addData("Angle", "%.1f°", spina.currentAngle);
-            telemetry.addData("Target", "%.1f°", spina.targetAngle);
-            telemetry.addData("Error", "%.1f°", spina.angleError);
-            telemetry.addData("Power", "%.2f", spina.appliedPower);
-
-            telemetry.addLine("=== TURRET ===");
-            telemetry.addData("Mode", turret.mode);
-            telemetry.addData("pose", turret.getPose());
-            telemetry.addData("id", turret.getID());
-            telemetry.addData("pipeline", turret.limelight.getStatus().getPipelineIndex());
-
-            telemetry.addLine("=== HOOD ===");
-            telemetry.addData("Mode", H.mode);
-            telemetry.addData("Angle", "%.1f°", H.currentAngle);
-            telemetry.addData("Target", "%.1f°", H.targetAngle);
-            telemetry.addData("Error", "%.1f°", H.angleError);
-
-            telemetry.addLine("=== SILOS ===");
-            Spindexer.BallColor[] silos = spina.siloColors;
-            for (int i = 0; i < silos.length; i++) {
-                String label = "Silo " + (i + 1);
-                telemetry.addData(label, silos[i]);
-            }
-
-            telemetry.update();
         }
-    }
 
-    private void stopZoneShootingCleanup() {
-        walleft.setPower(0);
-        wallright.setPower(0);
-        lifter.setDown();
-        spin.enableSensorUpdates();
+        // -----------------------------------------------------
+        // TELEMETRY
+        // -----------------------------------------------------
+        telemetry.addData("AutoState", autoState);
+        telemetry.addData("sequenceIndex", sequenceIndex);
+        telemetry.addData("activePathIndex", activePathIndex);
+        telemetry.addData("followerBusy", follower.isBusy());
+        telemetry.addData("autoShootBusy", autoShoot.isBusy());
+        telemetry.addData("shotsFired", autoShoot.shotsFired);
+        telemetry.addData("x", follower.getPose().getX());
+        telemetry.addData("y", follower.getPose().getY());
+        telemetry.addData("heading", follower.getPose().getHeading());
+
+        ShooterClass.ShooterTelemetry s = shooter.getTelemetry();
+        telemetry.addLine("=== SHOOTER ===");
+        telemetry.addData("Mode", s.mode);
+        telemetry.addData("Target RPM", "%.2f", s.targetRPM);
+        telemetry.addData("Current RPM", "%.1f", s.currentRPM);
+        telemetry.addData("Error RPM", "%.1f", s.errorRPM);
+        telemetry.addData("Motor Power", "%.2f", s.motorPower);
+
+        Spindexer.TelemetryPacket sp = spin.getTelemetry();
+        telemetry.addLine("=== SPINDEXER ===");
+        telemetry.addData("Mode", sp.mode);
+        telemetry.addData("Angle", "%.1f°", sp.currentAngle);
+        telemetry.addData("Target", "%.1f°", sp.targetAngle);
+        telemetry.addData("Error", "%.1f°", sp.angleError);
+        telemetry.addData("Power", "%.2f", sp.appliedPower);
+
+        Hood.TelemetryPacket h = hood.getTelemetry();
+        telemetry.addLine("=== HOOD ===");
+        telemetry.addData("Mode", h.mode);
+        telemetry.addData("Angle", "%.1f°", h.currentAngle);
+        telemetry.addData("Target", "%.1f°", h.targetAngle);
+        telemetry.addData("Error", "%.1f°", h.angleError);
+
+        telemetry.addLine("=== SILOS ===");
+        for (int i = 0; i < sp.siloColors.length; i++) {
+            telemetry.addData("Silo " + (i + 1), sp.siloColors[i]);
+        }
+
+        telemetry.update();
     }
 
     @Override
     public void stop() {
+        // Make sure everything ends in a safe state.
+        follower.breakFollowing();
+        autoShoot.stopForcedCycle();
+        setDriveFeedersOff();
+        lift.setDown();
     }
-
-    // ----------------- Auto state machine -----------------
-    private void autoStateUpdate() {
-
-        // If zone-shooting active, prevent normal path advancement.
-        if (zoneShootingActive) {
-            return;
-        }
-
-        switch (autoState) {
-
-            case FOLLOW_PATH:
-                startFinished = true;
-                if (!followerStarted) {
-                    if (pathIndex < paths.paths.length) {
-                        follower.followPath(paths.paths[pathIndex], 1, true);
-                        followerStarted = true;
-
-                        // We only wanted to suppress zone-shooting until the first path actually started.
-                        // Clear the skip flag once the path is actually started so future zone shooting works.
-                        skipZoneShootingOnce = false;
-
-                        lastFollowerBusy = true;
-                    } else {
-                        autoState = AutoState.DONE;
-                        return;
-                    }
-                }
-
-                // Detect arrival edge: follower busy -> not busy
-                if (lastFollowerBusy && !follower.isBusy()) {
-                    pathTimer.resetTimer();
-                    lastFollowerBusy = false;
-                }
-
-                if (follower.isBusy()) {
-                    lastFollowerBusy = true;
-                    return;
-                }
-
-                if (pathTimer.getElapsedTimeSeconds() < PATH_SETTLE_SECONDS) {
-                    return;
-                }
-
-                // If this path is a shooting path, request shooting (pattern-based)
-                if (isInArray(SHOOT_PATHS, pathIndex) &&
-                        pathIndex >= 0 && pathIndex < shotDoneForPath.length &&
-                        !shotDoneForPath[pathIndex]) {
-                    autoState = AutoState.REQUEST_SHOT;
-                    return;
-                }
-
-                // Not a shooting path -> advance to next path
-                pathIndex++;
-                followerStarted = false;
-
-                if (pathIndex >= paths.paths.length) {
-                    autoState = AutoState.DONE;
-                }
-                break;
-
-            case REQUEST_SHOT:
-                ShotPatternManager.ShotPattern p = patternFromTag(turret.getID());
-                if (p != null) {
-                    patternMgr.clear();
-                    patternMgr.addPattern(p.sequence);
-                }
-
-                autoShoot.startCycle();
-
-                // If not zone-shooting, break follower to keep robot still while pattern-based shooting occurs
-                if (!zoneShootingActive) {
-                    follower.breakFollowing();
-                    followerStarted = false;
-                }
-
-                shotRequestTimer.reset();
-                autoState = AutoState.WAIT_FOR_SHOT;
-                break;
-
-            case WAIT_FOR_SHOT:
-                hood.setTarget(75);
-
-                walleft.setPower(0.51);
-                wallright.setPower(0.51);
-
-                if (autoShoot.shotsFired >= 3) {
-                    walleft.setPower(0);
-                    wallright.setPower(0);
-                    lifter.setDown();
-
-                    if (startShotTriggered) {
-                        // This was the pre-start shot. DO NOT mark shotDoneForPath[pathIndex],
-                        // DO NOT advance pathIndex here. Instead return to FOLLOW_PATH so the
-                        // follower will execute path 0 and we can shoot it at its end.
-                        startShotTriggered = false;
-                        autoState = AutoState.FOLLOW_PATH;
-                        followerStarted = false;
-                        pathTimer.resetTimer();
-                        waitTimer.reset();
-                        startFinished = true;
-
-                        // NOTE: skipZoneShootingOnce was already set in start(); keep it true
-                        // until the FOLLOW_PATH branch actually starts the path (we clear it there).
-                        return;
-                    } else {
-                        if (pathIndex >= 0 && pathIndex < shotDoneForPath.length) {
-                            shotDoneForPath[pathIndex] = true;
-                        }
-
-                        pathIndex++;
-                        followerStarted = false;
-                        pathTimer.resetTimer();
-                        waitTimer.reset();
-
-                        if (pathIndex >= paths.paths.length) {
-                            autoState = AutoState.DONE;
-                        } else {
-                            autoState = AutoState.FOLLOW_PATH;
-                        }
-                        startFinished = true;
-                        return;
-                    }
-                }
-
-                if (shotRequestTimer.seconds() > SHOOT_TIMEOUT_SECONDS && lifter.isDown()) {
-                    autoShoot.stopForcedCycle();
-                    walleft.setPower(0);
-                    wallright.setPower(0);
-                    lifter.setDown();
-
-                    pathIndex++;
-                    followerStarted = false;
-                    if (pathIndex >= paths.paths.length) autoState = AutoState.DONE;
-                    else autoState = AutoState.FOLLOW_PATH;
-                    startFinished = true;
-                }
-                break;
-
-            case DONE:
-                follower.breakFollowing();
-                walleft.setPower(0);
-                wallright.setPower(0);
-                lifter.setDown();
-                break;
-        }
-
-    }
-
-    // ----------------- Zone detection and zone-shooting -----------------
-    private void checkFloorSensorsForZoneAndMaybeStartShooting() {
-        int blc = BackLeftCorner.blue();
-        int brc = BackRightCorner.blue();
-        int flc = FrontLeftCorner.blue();
-        int frc = FrontRightCorner.blue();
-
-        double rx = follower.getPose().getX();
-        double ry = follower.getPose().getY();
-        boolean coarseInside = insideShootingZone(rx, ry);
-
-        if (!coarseInside) {
-            lastZoneTriggerStart = 0;
-            blcLatched = brcLatched = flcLatched = frcLatched = false;
-            return;
-        }
-
-        // If we were asked to skip zone-shooting once (pre-start shot), and we haven't started
-        // the first path yet, don't trigger zone shooting here.
-        if (skipZoneShootingOnce && pathIndex == 0 && !followerStarted) {
-            return;
-        }
-
-        int countAbove = 0;
-        if (blc > ZONE_BLUE_THRESHOLD) countAbove++;
-        if (brc > ZONE_BLUE_THRESHOLD) countAbove++;
-        if (flc > ZONE_BLUE_THRESHOLD) countAbove++;
-        if (frc > ZONE_BLUE_THRESHOLD) countAbove++;
-
-        // immediate accept if two or more sensors are high (quick entry)
-        if (countAbove >= 2) {
-            startZoneShootingIfNeeded();
-            return;
-        }
-
-        boolean anyHigh = (blc > ZONE_BLUE_THRESHOLD) || (brc > ZONE_BLUE_THRESHOLD)
-                || (flc > ZONE_BLUE_THRESHOLD) || (frc > ZONE_BLUE_THRESHOLD);
-
-        double now = opmodeTimer.getElapsedTimeSeconds();
-        if (anyHigh) {
-            if (lastZoneTriggerStart == 0) lastZoneTriggerStart = now;
-            else if ((now - lastZoneTriggerStart) >= SENSOR_HOLD_SECONDS) {
-                startZoneShootingIfNeeded();
-                lastZoneTriggerStart = 0;
-            }
-        } else {
-            lastZoneTriggerStart = 0;
-        }
-
-        blcLatched = blc > ZONE_BLUE_THRESHOLD;
-        brcLatched = brc > ZONE_BLUE_THRESHOLD;
-        flcLatched = flc > ZONE_BLUE_THRESHOLD;
-        frcLatched = frc > ZONE_BLUE_THRESHOLD;
-    }
-
-    private void startZoneShootingIfNeeded() {
-        if (zoneShootingActive) return;
-        if (autoState != AutoState.FOLLOW_PATH) return;
-        if (autoShoot.isBusy()) return;
-
-        // double-check skip flag: don't zone-shoot if we were asked to skip once.
-        if (skipZoneShootingOnce && pathIndex == 0 && !followerStarted) return;
-
-        zoneShootingActive = true;
-        zoneShootingStartTime = opmodeTimer.getElapsedTimeSeconds();
-        spin.disableSensorUpdates();
-
-        // Use forced cycling — it will continue cycling until we call stopForcedCycle()
-        autoShoot.startForcedCycle();
-    }
-
 }

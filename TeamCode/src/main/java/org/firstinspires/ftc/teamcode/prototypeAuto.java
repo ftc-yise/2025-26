@@ -145,7 +145,7 @@ public class prototypeAuto extends OpMode {
                         intake.setPower(1);
                         walleft.setPower(1);
                         wallright.setPower(1);
-                        spin.setManual(.08);
+                        spin.startManualCycle();
                     }
                     intake.setPower(0);
                     walleft.setPower(0);

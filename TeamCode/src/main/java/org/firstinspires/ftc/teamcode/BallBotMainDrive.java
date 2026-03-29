@@ -16,7 +16,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
@@ -127,9 +126,9 @@ public class BallBotMainDrive extends LinearOpMode {
 
         hood.stop();
 
-        spin.initSilos();
+        //spin.initSilos();
 
-        spin.goToSilo2();
+        //spin.goToSilo2();
         lifter.setDown();
 
         waitForStart();
@@ -338,7 +337,7 @@ public class BallBotMainDrive extends LinearOpMode {
                 led1.setBlue();
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(.2);
+                spin.startManualCycle();
                 once = true;
 
             } else if (gamepad1.left_trigger > .75 && !shooting) {
@@ -351,13 +350,6 @@ public class BallBotMainDrive extends LinearOpMode {
                 intake.setPower(-.6);
                 walleft.setPower(-1);
                 wallright.setPower(-1);
-                spin.setManual(0);
-                once = true;
-            } else if (gamepad2.dpad_right){
-                spin.setManual(0.045);
-                once = true;
-            } else if (gamepad2.dpad_left){
-                spin.setManual(-0.065);
                 once = true;
             } else {
                 intake.setPower(0);
@@ -383,9 +375,17 @@ public class BallBotMainDrive extends LinearOpMode {
             // --- HOOD & FOOT ---
             if (gamepad1.dpad_down) {
                 foot.setPower(0.557);
+                //spin.goToPose(0);
+            }
+            else if (gamepad1.dpad_left) {
+                spin.goToPose(0);
             }
             else if (gamepad1.dpad_up) {
                 foot.setPower(-0.25);
+                //spin.goToPose(0.5);
+            }else if (gamepad1.dpad_right) {
+                foot.setPower(-0.25);
+                spin.goToPose(1);
             }
 
             if (gamepad2.dpad_up && !autoShoot.isBusy()) {

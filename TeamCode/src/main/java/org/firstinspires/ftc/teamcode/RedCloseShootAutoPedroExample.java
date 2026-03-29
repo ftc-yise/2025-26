@@ -25,7 +25,7 @@ import org.firstinspires.ftc.teamcode.yise.Turret;
 import org.firstinspires.ftc.teamcode.yise.lifter;
 
 @Autonomous(name = "[RED] Close Shoot Auto", group = "Auto")
-public class RedCloseShootAuto extends OpMode {
+public class RedCloseShootAutoPedroExample extends OpMode {
     static int X_SHIFT = 4;
 
     // --- Paths ---
@@ -240,7 +240,7 @@ public class RedCloseShootAuto extends OpMode {
                 intake.setPower(1);
                 walleft.setPower(1);
                 wallright.setPower(1);
-                spin.setManual(0.08);
+                spin.startManualCycle();
             } else {
                 intake.setPower(0);
                 walleft.setPower(0);
